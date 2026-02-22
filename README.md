@@ -108,6 +108,28 @@ cd ..
 streamlit run app/Home.py
 ```
 
+### One-command demo
+
+From repo root:
+
+```bash
+make setup
+make demo
+```
+
+`make demo` runs a full build (dbt → ML → dbt) then starts the Streamlit app. For build-only: `make build`. To run only the app: `make app`.
+
+### Export artifacts
+
+Export key marts and ML outputs as CSVs into `docs/artifacts/` for sharing without running Streamlit (e.g. for docs or handoffs). Generated `*.csv` files are gitignored; the folder is kept via `docs/artifacts/.gitkeep`.
+
+```bash
+make build
+./scripts/export_demo_artifacts.sh
+```
+
+Exports: executive forecast summary (latest 12 months), ARR waterfall (latest 6 months), churn risk watchlist (top 20), backtest metrics, `ml_model_selection`, and calibration bins for preferred models.
+
 ---
 
 ## Run types
