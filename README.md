@@ -4,6 +4,18 @@ A **Revenue Forecasting Platform** for B2B SaaS: an analytics engineering projec
 
 ---
 
+## Start here
+
+New to the repo? Get up to speed in a few minutes:
+
+| Doc | Purpose |
+|-----|---------|
+| **[Architecture overview](docs/architecture_overview.md)** | System narrative, architecture diagram (Mermaid), and design decisions. |
+| **[Demo script (3 min)](docs/demo_script_3min.md)** | Executive-grade walkthrough: problem → Forecast → ARR Waterfall → Risk Radar → Model Intelligence → product angle. |
+| **[Founder pitch one-pager](docs/founder_pitch_onepager.md)** | Product name, ICP, value, differentiators, MVP vs v2, and high-level pricing tiers. |
+
+---
+
 ## Executive summary
 
 **Problem:** Revenue plans are often scattered across spreadsheets and CRM snapshots, with no clear lineage or way to run what-if scenarios (e.g. churn, expansion, pipeline conversion).
@@ -71,7 +83,30 @@ pip install -r requirements.txt
 streamlit run app/Home.py
 ```
 
-If the DuckDB file or marts are missing, the app shows: **Run dbt + ML pipeline first to populate marts.**
+If the DuckDB file or marts are missing, the app shows a **Run checklist** with the exact commands to build tables and optionally train ML.
+
+### How to run it locally (after Prompt 42+)
+
+From repo root:
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+
+# Build tables
+export DBT_PROFILES_DIR=./dbt/profiles
+cd dbt
+dbt seed --full-refresh
+dbt run
+dbt test
+cd ..
+
+# (Optional) Train ML and repopulate
+./scripts/run_all.sh
+
+# Launch demo
+streamlit run app/Home.py
+```
 
 ---
 
@@ -219,8 +254,24 @@ If **both** logistic and xgboost exceed the thresholds for a given dataset, the 
 
 ---
 
+## Screenshots
+
+| Page | Placeholder |
+|------|-------------|
+| **Forecast vs Actual** | *Screenshot: forecast bands, scenarios, confidence.* |
+| **ARR Waterfall** | *Screenshot: bridge and reconciliation.* |
+| **Risk Radar** | *Screenshot: churn risk watchlist and top ARR movers.* |
+| **Model Intelligence** | *Screenshot: champion selection and calibration.* |
+
+**Note:** Run Streamlit locally (`streamlit run app/Home.py`) and take screenshots; add them under `docs/screenshots/` and link here if desired.
+
+---
+
 ## Documentation
 
+- **[Architecture overview](docs/architecture_overview.md)** — System narrative, Mermaid diagram, design decisions.
+- **[Demo script (3 min)](docs/demo_script_3min.md)** — Executive demo walkthrough.
+- **[Founder pitch one-pager](docs/founder_pitch_onepager.md)** — Product pitch and MVP/v2 scope.
 - **[Company Onboarding Guide](docs/company_onboarding_guide.md)** — How to map common source systems (Salesforce, HubSpot, Stripe, Chargebee) into the platform’s canonical data contract; required and optional tables, mapping patterns, pitfalls, minimum viable onboarding checklist, and data quality controls.
 - `docs/` — Additional project and architecture docs (metrics, configuration, data contract).
 
