@@ -1,7 +1,7 @@
 # Revenue Forecasting Platform — one-command demo and targets.
 # Run from repo root. Relative paths only; macOS-friendly.
 
-.PHONY: help setup dbt ml build app demo clean
+.PHONY: help setup dbt ml build app demo clean sim sim_validate sim_demo
 
 help:
 	@echo "Revenue Forecasting Platform — targets (run from repo root):"
@@ -11,6 +11,9 @@ help:
 	@echo "  make build  - Full build: dbt, then ml, then dbt again"
 	@echo "  make app    - Run Streamlit cockpit (streamlit run app/Home.py)"
 	@echo "  make demo   - Run build then app (one-command demo)"
+	@echo "  make sim    - Generate sim data (./scripts/sim_generate.sh)"
+	@echo "  make sim_validate - Validate sim data (./scripts/sim_validate.sh)"
+	@echo "  make sim_demo - sim + sim_validate + dbt run (data_mode=sim) + run_all.sh sim (ML pipeline)"
 	@echo "  make clean  - Remove dbt/target, dbt/logs, and warehouse/*.duckdb (keep warehouse/)"
 
 setup:
@@ -34,6 +37,16 @@ app:
 	@.venv/bin/streamlit run app/Home.py
 
 demo: build app
+
+sim:
+	@./scripts/sim_generate.sh
+
+sim_validate:
+	@./scripts/sim_validate.sh
+
+sim_demo: sim sim_validate
+	@cd dbt && export DBT_PROFILES_DIR=./profiles && ../.venv/bin/dbt run --vars '{data_mode: sim}'
+	@./scripts/run_all.sh sim
 
 clean:
 	@rm -rf dbt/target dbt/logs

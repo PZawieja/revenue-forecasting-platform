@@ -72,6 +72,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Sim generate and validate (optional)
+        if: vars.SIM_VALIDATE == 'true'
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.sim.src.simulate --config forecasting/sim/config/sim_config.yml
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.sim.src.validate_simulation --config forecasting/sim/config/sim_config.yml
+
       - name: dbt deps
         working-directory: dbt
         env:

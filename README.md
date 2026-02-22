@@ -148,6 +148,25 @@ A **realistic simulation mode** dataset generator produces Parquet files for Duc
 
 `dbt seed` is **not required** in sim mode (staging reads from Parquet). You can still run `dbt seed` if you want seeds present for other uses. If you run `dbt run --vars '{data_mode: sim}'` without generating first, dbt will error clearly when it tries to read the missing Parquet files (e.g. from `int_sim_data_check` or staging models).
 
+### Simulation validator
+
+A **simulation quality validator** checks that generated sim data matches the intended realism targets (within tolerance). Use it to catch regressions in the generator or config. Run after `./scripts/sim_generate.sh`:
+
+```bash
+./scripts/sim_validate.sh
+# or: make sim_validate
+```
+
+**What it checks:**
+
+- **Segment distribution** — Actual vs `config.segment_mix` (absolute diff per segment within tolerance).
+- **Churn** — Approximate annualized logo churn by segment vs `churn_targets_by_segment` (±35% relative).
+- **Revenue concentration** — Top-5 customer share of ARR in the last simulated month (overall and enterprise_large); keeps concentration in a realistic range.
+- **Pipeline** — Close rate (won / (won + lost)) and stage volatility (% of opps that move backward at least once).
+- **Usage** — Non-trivial noise (coefficient of variation of usage per user) and correlation between CRM health and usage (positive but not too high, to reflect contradictory signals).
+
+Exit code 0 if all critical checks pass, 1 otherwise. Optional CI integration: set the repository variable **`SIM_VALIDATE`** to `true` in GitHub to run sim generate + validate in the `ml_ci` job (off by default to keep CI time down).
+
 ---
 
 ## Run types
