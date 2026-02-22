@@ -1,6 +1,9 @@
 """Simulation IO: write Parquet, ensure output dirs. No hardcoded absolute paths."""
 
+from __future__ import annotations
+
 from pathlib import Path
+from typing import Union
 
 import pandas as pd
 
@@ -10,7 +13,7 @@ def ensure_dirs(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
 
 
-def write_parquet(df: pd.DataFrame, path: str | Path) -> None:
+def write_parquet(df: pd.DataFrame, path: Union[str, Path]) -> None:
     """Write DataFrame to Parquet; ensure parent folders exist. Path is relative or absolute."""
     p = Path(path).resolve()
     ensure_dirs(p)

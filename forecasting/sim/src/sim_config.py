@@ -1,5 +1,7 @@
 """Load simulation config from YAML. Paths are resolved relative to cwd or config file."""
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Any
 
