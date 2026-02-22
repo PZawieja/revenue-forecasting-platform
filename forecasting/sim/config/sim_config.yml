@@ -1,0 +1,61 @@
+# Simulation mode: parameters for realistic dataset generation.
+# Outputs Parquet files under output.base_path for DuckDB/dbt consumption.
+
+random_seed: 42
+start_month: "2024-01-01"
+months: 24
+n_customers_total: 1200
+
+segment_mix:
+  enterprise: 0.05
+  large: 0.10
+  medium: 0.25
+  smb: 0.60
+
+enterprise_large_behavior:
+  contract_term_months: [12, 24, 36]
+  onboarding_lag_months: [1, 2, 3]
+
+mid_smb_behavior:
+  contract_term_months: [1, 12]
+  onboarding_lag_months: [0, 1]
+
+# Annualized churn approximation by segment
+churn_targets_by_segment:
+  enterprise: 0.03
+  large: 0.06
+  medium: 0.10
+  smb: 0.18
+
+pipeline:
+  opps_per_month_per_100_customers: 8
+  stage_names:
+    - prospecting
+    - discovery
+    - proposal
+    - negotiation
+    - closed_won
+    - closed_lost
+  slippage_by_stage_months:
+    enterprise:
+      prospecting: 3
+      discovery: 2
+      proposal: 1
+      negotiation: 1
+    mid_smb:
+      prospecting: 2
+      discovery: 1
+      proposal: 1
+      negotiation: 0
+
+usage:
+  features:
+    - feature_a
+    - feature_b
+    - feature_c
+  noise_std: 0.25
+  contradictory_signal_rate: 0.08
+
+output:
+  base_path: "./warehouse/sim_data"
+  format: "parquet"

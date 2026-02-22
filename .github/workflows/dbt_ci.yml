@@ -72,6 +72,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: dbt deps
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt deps
+
       - name: dbt seed (ML feature tables)
         working-directory: dbt
         env:

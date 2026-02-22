@@ -13,6 +13,8 @@ New to the repo? Get up to speed in a few minutes:
 | **[Architecture overview](docs/architecture_overview.md)** | System narrative, architecture diagram (Mermaid), and design decisions. |
 | **[Demo script (3 min)](docs/demo_script_3min.md)** | Executive-grade walkthrough: problem → Forecast → ARR Waterfall → Risk Radar → Model Intelligence → product angle. |
 | **[Founder pitch one-pager](docs/founder_pitch_onepager.md)** | Product name, ICP, value, differentiators, MVP vs v2, and high-level pricing tiers. |
+| **[ADRs](docs/adrs/README.md)** | Architecture Decision Records: deterministic baseline, ML as calibration, DuckDB + dbt. |
+| **[Golden queries](docs/golden_queries/README.md)** | Copy-paste SQL for common executive questions (forecast vs actual, ARR waterfall, risk, coverage, model quality). |
 
 ---
 
@@ -129,6 +131,16 @@ make build
 ```
 
 Exports: executive forecast summary (latest 12 months), ARR waterfall (latest 6 months), churn risk watchlist (top 20), backtest metrics, `ml_model_selection`, and calibration bins for preferred models.
+
+### Simulation mode
+
+A **realistic simulation mode** dataset generator produces Parquet files for DuckDB/dbt consumption (e.g. for demos or stress tests without production data). Config lives in `forecasting/sim/config/sim_config.yml` (segment mix, churn targets, pipeline and usage parameters). Outputs are written under **`warehouse/sim_data/`** (customers, products, subscription_line_items, pipeline_opportunities_snapshot, usage_monthly). Sim outputs are not committed (see `.gitignore`).
+
+```bash
+./scripts/sim_generate.sh
+```
+
+Or: `PYTHONPATH=. python -m forecasting.sim.src.simulate --config forecasting/sim/config/sim_config.yml`. To consume sim data in dbt, point seeds or a custom source to the Parquet files under `warehouse/sim_data/` (ingestion path is not wired by default).
 
 ---
 
@@ -295,6 +307,8 @@ If **both** logistic and xgboost exceed the thresholds for a given dataset, the 
 - **[Demo script (3 min)](docs/demo_script_3min.md)** — Executive demo walkthrough.
 - **[Founder pitch one-pager](docs/founder_pitch_onepager.md)** — Product pitch and MVP/v2 scope.
 - **[Company Onboarding Guide](docs/company_onboarding_guide.md)** — How to map common source systems (Salesforce, HubSpot, Stripe, Chargebee) into the platform’s canonical data contract; required and optional tables, mapping patterns, pitfalls, minimum viable onboarding checklist, and data quality controls.
+- **[ADRs](docs/adrs/README.md)** — Architecture Decision Records (deterministic baseline, ML as calibration, DuckDB + dbt); template and how to add new ones.
+- **[Golden queries](docs/golden_queries/README.md)** — Reference SQL snippets for forecast vs actual, ARR waterfall, churn risk, ARR movers, coverage, model selection, and confidence trend.
 - `docs/` — Additional project and architecture docs (metrics, configuration, data contract).
 
 ---

@@ -391,6 +391,10 @@ models:
         description: "Point forecast MRR (from fct_revenue_forecast_monthly)."
       - name: forecast_lower
         description: "Lower bound of backtest-derived interval; forecast_mrr_total * (1 - volatility_factor), >= 0."
+        tests:
+          - accepted_range:
+              min_value: 0
+              max_value: 999999999
       - name: forecast_upper
         description: "Upper bound of backtest-derived interval; forecast_mrr_total * (1 + volatility_factor)."
       - name: actual_mrr
@@ -955,10 +959,22 @@ models:
         tests: [not_null]
       - name: current_mrr_pre_renewal
         description: "MRR in the month prior to renewal_month."
+        tests:
+          - accepted_range:
+              min_value: 0
+              max_value: 999999999
       - name: months_to_renewal
         description: "Months from latest month in data to renewal_month."
+        tests:
+          - accepted_range:
+              min_value: 0
+              max_value: 9999
       - name: health_score_1_10
         description: "Health score 1-10 as-of month prior to renewal (from int_customer_health_monthly)."
+        tests:
+          - accepted_range:
+              min_value: 1
+              max_value: 10
       - name: slope_bucket
         description: "Usage trend bucket: declining, flat, or growing."
         tests:
@@ -1004,12 +1020,20 @@ models:
                 values: [prospecting, discovery, proposal, negotiation, closed won, closed lost]
       - name: amount
         description: "Opportunity amount."
+        tests:
+          - accepted_range:
+              min_value: 0
+              max_value: 999999999
       - name: expected_close_month
         description: "Expected close date truncated to month."
       - name: opportunity_type
         description: "new_biz, expansion, or renewal."
       - name: deal_age_months
         description: "Months from first snapshot (first seen) to this snapshot_month."
+        tests:
+          - accepted_range:
+              min_value: 0
+              max_value: 9999
       - name: closed_won_flag
         description: "Label: 1 if opportunity ever reaches 'closed won' in a later snapshot, else 0."
     tests:
