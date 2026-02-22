@@ -66,6 +66,82 @@ def get_available_months() -> tuple[str, dict[str, Any]]:
     return sql.strip(), {}
 
 
+def get_forecast_timeseries(scenario: str, segment: str) -> tuple[str, dict[str, Any]]:
+    """
+    Timeseries from fct_revenue_forecast_with_intervals: month, segment, scenario,
+    forecast_mrr_total, actual_mrr, forecast_lower, forecast_upper.
+    segment='All' aggregates across segments. Use this first; fallback to get_forecast_timeseries_fallback if table missing.
+    """
+    if segment and segment != "All":
+        sql = """
+        SELECT
+            month,
+            segment,
+            scenario,
+            sum(forecast_mrr_total) AS forecast_mrr_total,
+            sum(actual_mrr) AS actual_mrr,
+            sum(forecast_lower) AS forecast_lower,
+            sum(forecast_upper) AS forecast_upper
+        FROM main.fct_revenue_forecast_with_intervals
+        WHERE scenario = $scenario AND segment = $segment
+        GROUP BY month, segment, scenario
+        ORDER BY month
+        """
+        return sql.strip(), {"scenario": scenario, "segment": segment}
+    sql = """
+    SELECT
+        month,
+        'All' AS segment,
+        scenario,
+        sum(forecast_mrr_total) AS forecast_mrr_total,
+        sum(actual_mrr) AS actual_mrr,
+        sum(forecast_lower) AS forecast_lower,
+        sum(forecast_upper) AS forecast_upper
+    FROM main.fct_revenue_forecast_with_intervals
+    WHERE scenario = $scenario
+    GROUP BY month, scenario
+    ORDER BY month
+    """
+    return sql.strip(), {"scenario": scenario}
+
+
+def get_forecast_timeseries_fallback(scenario: str, segment: str) -> tuple[str, dict[str, Any]]:
+    """
+    Timeseries from fct_revenue_forecast_monthly (no intervals). forecast_lower/forecast_upper not available (null).
+    """
+    if segment and segment != "All":
+        sql = """
+        SELECT
+            month,
+            segment,
+            scenario,
+            sum(forecast_mrr_total) AS forecast_mrr_total,
+            sum(actual_mrr) AS actual_mrr,
+            cast(null AS double) AS forecast_lower,
+            cast(null AS double) AS forecast_upper
+        FROM main.fct_revenue_forecast_monthly
+        WHERE scenario = $scenario AND segment = $segment
+        GROUP BY month, segment, scenario
+        ORDER BY month
+        """
+        return sql.strip(), {"scenario": scenario, "segment": segment}
+    sql = """
+    SELECT
+        month,
+        'All' AS segment,
+        scenario,
+        sum(forecast_mrr_total) AS forecast_mrr_total,
+        sum(actual_mrr) AS actual_mrr,
+        cast(null AS double) AS forecast_lower,
+        cast(null AS double) AS forecast_upper
+    FROM main.fct_revenue_forecast_monthly
+    WHERE scenario = $scenario
+    GROUP BY month, scenario
+    ORDER BY month
+    """
+    return sql.strip(), {"scenario": scenario}
+
+
 # Legacy placeholders (for other pages)
 def sql_executive_forecast_summary() -> str:
     return "SELECT * FROM main.mart_executive_forecast_summary LIMIT 100"
