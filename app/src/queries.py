@@ -215,6 +215,91 @@ def get_arr_reconciliation(month: str, scenario: str, segment: str) -> tuple[str
     return sql.strip(), params
 
 
+def get_churn_risk_watchlist(month: str, segment: str) -> tuple[str, dict[str, Any]]:
+    """
+    Top 20 by risk_rank from mart_churn_risk_watchlist for (month, segment).
+    Joins dim_customer for customer_name. segment='All' returns all segments.
+    """
+    if segment and segment != "All":
+        sql = """
+        SELECT
+            coalesce(c.customer_name, w.customer_id::varchar) AS customer_name,
+            w.segment,
+            w.months_to_renewal,
+            w.current_arr,
+            w.p_renew,
+            w.health_score_1_10,
+            w.slope_bucket,
+            w.risk_reason
+        FROM main.mart_churn_risk_watchlist w
+        LEFT JOIN main.dim_customer c ON c.company_id = w.company_id AND c.customer_id = w.customer_id
+        WHERE w.month = $month AND w.segment = $segment
+        ORDER BY w.risk_rank
+        LIMIT 20
+        """
+        return sql.strip(), {"month": month, "segment": segment}
+    sql = """
+    SELECT
+        coalesce(c.customer_name, w.customer_id::varchar) AS customer_name,
+        w.segment,
+        w.months_to_renewal,
+        w.current_arr,
+        w.p_renew,
+        w.health_score_1_10,
+        w.slope_bucket,
+        w.risk_reason
+    FROM main.mart_churn_risk_watchlist w
+    LEFT JOIN main.dim_customer c ON c.company_id = w.company_id AND c.customer_id = w.customer_id
+    WHERE w.month = $month
+    ORDER BY w.risk_rank
+    LIMIT 20
+    """
+    return sql.strip(), {"month": month}
+
+
+def get_top_arr_movers(month: str, segment: str) -> tuple[str, dict[str, Any]]:
+    """
+    Top 10 from mart_top_arr_movers for (month, segment). segment='All' aggregates (all segments).
+    """
+    if segment and segment != "All":
+        sql = """
+        SELECT
+            customer_name,
+            arr_delta,
+            bridge_category,
+            health_score_1_10,
+            slope_bucket
+        FROM main.mart_top_arr_movers
+        WHERE month = $month AND segment = $segment
+        ORDER BY rank
+        LIMIT 10
+        """
+        return sql.strip(), {"month": month, "segment": segment}
+    sql = """
+    SELECT
+        customer_name,
+        arr_delta,
+        bridge_category,
+        health_score_1_10,
+        slope_bucket
+    FROM main.mart_top_arr_movers
+    WHERE month = $month
+    ORDER BY rank
+    LIMIT 10
+    """
+    return sql.strip(), {"month": month}
+
+
+def get_months_for_risk() -> tuple[str, dict[str, Any]]:
+    """Distinct months available in mart_churn_risk_watchlist."""
+    sql = """
+    SELECT DISTINCT month
+    FROM main.mart_churn_risk_watchlist
+    ORDER BY month DESC
+    """
+    return sql.strip(), {}
+
+
 # Legacy placeholders (for other pages)
 def sql_executive_forecast_summary() -> str:
     return "SELECT * FROM main.mart_executive_forecast_summary LIMIT 100"
