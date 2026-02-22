@@ -61,6 +61,18 @@ From the repo root, using the provided scripts (they use **`DBT_PROFILES_DIR=./p
 
 Profile is in `dbt/profiles/profiles.yml` (DuckDB at `../warehouse/revenue_forecasting.duckdb` when run from `dbt/`).
 
+### Local demo (Streamlit)
+
+From the repo root, run the Revenue Intelligence Executive Cockpit (reads from DuckDB + dbt marts):
+
+```bash
+source .venv/bin/activate
+pip install -r requirements.txt
+streamlit run app/Home.py
+```
+
+If the DuckDB file or marts are missing, the app shows: **Run dbt + ML pipeline first to populate marts.**
+
 ---
 
 ## Run types
