@@ -1,0 +1,11 @@
+# Copy to ~/.dbt/profiles.yml or set DBT_PROFILES_DIR to dbt/profiles/
+# DuckDB path is relative to repo root: ./warehouse/revenue_forecasting.duckdb
+# When running from dbt/, use path below so the file resolves to repo_root/warehouse/
+revenue_forecasting_platform:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../warehouse/revenue_forecasting.duckdb
+      schema: main
+      threads: 4

@@ -1,0 +1,12 @@
+product_id,product_family,is_recurring,default_term_months
+prod_a1,A,true,12
+prod_a2,A,true,24
+prod_a3,A,false,1
+prod_b1,B,true,12
+prod_b2,B,true,36
+prod_b3,B,true,1
+prod_c1,C,true,12
+prod_c2,C,true,24
+prod_d1,D,false,1
+prod_d2,D,true,12
+prod_d3,D,true,36

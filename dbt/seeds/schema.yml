@@ -1,0 +1,132 @@
+# Seed schema and tests for B2B SaaS subscription dataset.
+version: 2
+
+seeds:
+  - name: customers
+    description: "Customer master: segment, region, industry, and optional CRM health score."
+    columns:
+      - name: customer_id
+        description: Unique customer identifier.
+        tests: [not_null, unique]
+      - name: customer_name
+        description: Legal or display name of the customer.
+      - name: segment
+        description: Customer tier (enterprise, large, medium, smb).
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: region
+        description: "Geographic region (e.g. DACH, EU, US)."
+      - name: industry
+        description: Industry vertical.
+      - name: crm_health_input
+        description: "Optional health score 1-10 from CRM."
+      - name: created_date
+        description: "Date the customer was created (YYYY-MM-DD)."
+
+  - name: products
+    description: "Product catalog: family, recurrence, and default term."
+    columns:
+      - name: product_id
+        description: Unique product identifier.
+        tests: [not_null, unique]
+      - name: product_family
+        description: Product family (A, B, C, D).
+        tests:
+          - accepted_values:
+              arguments:
+                values: [A, B, C, D]
+      - name: is_recurring
+        description: "Whether the product is recurring (true) or one-time (false)."
+      - name: default_term_months
+        description: Default contract term in months.
+
+  - name: subscription_line_items
+    description: "Subscription line items; grain customer_id x product_id x contract_id."
+    columns:
+      - name: contract_id
+        description: Contract identifier.
+        tests: [not_null]
+      - name: customer_id
+        description: Customer identifier.
+        tests: [not_null]
+      - name: product_id
+        description: Product identifier.
+        tests: [not_null]
+      - name: contract_start_date
+        description: Contract start date.
+      - name: contract_end_date
+        description: Contract end date.
+      - name: billing_frequency
+        description: "Billing frequency (monthly or annual)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [monthly, annual]
+      - name: quantity
+        description: Quantity (seats or units).
+      - name: unit_price
+        description: Unit price per billing period.
+      - name: discount_pct
+        description: "Discount as decimal 0-1."
+      - name: status
+        description: "Contract status (active, non_renewing, cancelled)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [active, non_renewing, cancelled]
+
+  - name: pipeline_opportunities_snapshot
+    description: "Pipeline snapshot by opportunity and date; shows stage movement over time."
+    columns:
+      - name: snapshot_date
+        description: "Date of the snapshot (YYYY-MM-DD)."
+        tests: [not_null]
+      - name: opportunity_id
+        description: Opportunity identifier.
+        tests: [not_null]
+      - name: customer_id
+        description: Customer identifier; null for net-new business.
+      - name: segment
+        description: Segment used for the opportunity.
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: stage
+        description: "Sales stage (e.g. Prospecting, Discovery, Closed Won/Lost)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [Prospecting, Discovery, Proposal, Negotiation, Closed Won, Closed Lost]
+      - name: amount
+        description: Opportunity amount.
+      - name: expected_close_date
+        description: Expected close date.
+      - name: opportunity_type
+        description: "Type of opportunity (new_biz, expansion, renewal)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [new_biz, expansion, renewal]
+
+  - name: usage_monthly
+    description: "Monthly usage by customer and feature; grain customer_id x month x feature_key."
+    columns:
+      - name: month
+        description: "First day of month (YYYY-MM-01)."
+        tests: [not_null]
+      - name: customer_id
+        description: Customer identifier.
+        tests: [not_null]
+      - name: feature_key
+        description: "Feature identifier (feature_a, feature_b, feature_c)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [feature_a, feature_b, feature_c]
+      - name: usage_count
+        description: "Usage count for the feature in the month."
+      - name: active_users
+        description: "Active users in the month."

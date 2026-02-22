@@ -1,0 +1,9 @@
+# Run from dbt/ with: dbt debug --profiles-dir .
+# No profile is created in ~/.dbt.
+revenue_forecasting_platform:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../duckdb/revenue_forecasting.duckdb
+      schema: main

@@ -1,0 +1,20 @@
+name: "revenue_forecasting_platform"
+version: "1.0.0"
+config-version: 2
+
+profile: "revenue_forecasting_platform"
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+models:
+  revenue_forecasting_platform:
+    +materialized: view
+    # staging: and intermediate: config added when models exist in those folders
+    marts:
+      +materialized: view

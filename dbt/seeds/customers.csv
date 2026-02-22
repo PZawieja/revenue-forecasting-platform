@@ -1,0 +1,51 @@
+customer_id,customer_name,segment,region,industry,crm_health_input,created_date
+cust_001,Alpha Global Corp,enterprise,US,SaaS,8,2023-08-15
+cust_002,Beta Industries Ltd,enterprise,DACH,Manufacturing,7,2023-09-01
+cust_003,Gamma Solutions,large,EU,Logistics,9,2023-09-12
+cust_004,Delta Group,large,US,Retail,6,2023-10-01
+cust_005,Epsilon Logistics,large,DACH,Logistics,,2023-10-20
+cust_006,Zeta Retail Co,medium,EU,Retail,5,2023-11-01
+cust_007,Eta Manufacturing,medium,US,Manufacturing,7,2023-11-15
+cust_008,Theta Tech Inc,medium,EU,SaaS,4,2023-12-01
+cust_009,Iota Services,smb,DACH,Logistics,6,2023-12-10
+cust_010,Kappa Solutions,smb,US,Retail,8,2024-01-05
+cust_011,Lambda Corp,enterprise,EU,Manufacturing,9,2024-01-20
+cust_012,Mu Industries,large,DACH,SaaS,5,2024-02-01
+cust_013,Nu Logistics,large,US,Logistics,7,2024-02-15
+cust_014,Xi Retail Group,medium,EU,Retail,3,2024-03-01
+cust_015,Omicron Ltd,medium,DACH,Manufacturing,6,2024-03-15
+cust_016,Pi Tech,medium,US,SaaS,,2024-04-01
+cust_017,Rho Solutions,smb,EU,Logistics,5,2024-04-10
+cust_018,Sigma Co,smb,DACH,Retail,7,2024-05-01
+cust_019,Tau Manufacturing,smb,US,Manufacturing,4,2024-05-20
+cust_020,Upsilon Group,enterprise,EU,SaaS,8,2024-06-01
+cust_021,Phi Industries,large,DACH,Logistics,6,2024-06-15
+cust_022,Chi Corp,large,US,Retail,9,2024-07-01
+cust_023,Psi Services,medium,EU,Manufacturing,5,2024-07-15
+cust_024,Omega Ltd,medium,DACH,SaaS,7,2024-08-01
+cust_025,Prime Global,medium,US,Logistics,2,2024-08-10
+cust_026,Vertex Inc,smb,EU,Retail,6,2024-09-01
+cust_027,Apex Solutions,smb,DACH,Manufacturing,8,2024-09-15
+cust_028,Nexus Corp,smb,US,SaaS,4,2024-10-01
+cust_029,Summit Group,enterprise,EU,Logistics,9,2024-10-15
+cust_030,Pinnacle Ltd,large,DACH,Retail,7,2024-10-20
+cust_031,Horizon Industries,medium,US,Manufacturing,5,2024-10-22
+cust_032,Crest Solutions,medium,EU,SaaS,6,2024-10-25
+cust_033,Peak Logistics,smb,DACH,Logistics,,2024-10-28
+cust_034,Stratus Co,smb,US,Retail,7,2024-11-01
+cust_035,Cumulus Inc,smb,EU,Manufacturing,3,2024-11-05
+cust_036,Nimbus Ltd,medium,DACH,SaaS,8,2024-11-10
+cust_037,Cirrus Group,medium,US,Logistics,5,2024-11-15
+cust_038,Altostratus Corp,large,EU,Retail,6,2024-11-20
+cust_039,Cirrostratus Solutions,large,DACH,Manufacturing,9,2024-12-01
+cust_040,Stratocumulus Inc,medium,US,SaaS,4,2024-12-05
+cust_041,Nimbostratus Ltd,smb,EU,Logistics,7,2024-12-10
+cust_042,Fractus Co,smb,DACH,Retail,5,2024-12-15
+cust_043,Lenticular Industries,medium,US,Manufacturing,6,2024-12-20
+cust_044,Mammatus Group,smb,EU,SaaS,,2024-12-25
+cust_045,Pileus Corp,medium,DACH,Logistics,8,2025-01-01
+cust_046,Velum Solutions,large,US,Retail,7,2025-01-10
+cust_047,Pannus Ltd,medium,EU,Manufacturing,5,2025-01-15
+cust_048,Arcus Inc,smb,DACH,SaaS,4,2025-01-20
+cust_049,Tuba Co,smb,US,Logistics,6,2025-02-01
+cust_050,Virga Group,medium,EU,Retail,9,2025-02-10

@@ -1,0 +1,46 @@
+snapshot_date,opportunity_id,customer_id,segment,stage,amount,expected_close_date,opportunity_type
+2024-12-01,opp_001,,smb,Prospecting,4200.00,2025-02-15,new_biz
+2025-01-01,opp_001,,smb,Discovery,4200.00,2025-02-15,new_biz
+2025-02-01,opp_001,,smb,Proposal,4200.00,2025-02-28,new_biz
+2024-12-01,opp_002,cust_005,large,Discovery,18500.00,2025-01-31,renewal
+2025-01-01,opp_002,cust_005,large,Negotiation,18500.00,2025-01-31,renewal
+2025-02-01,opp_002,cust_005,large,Closed Won,18500.00,2025-01-31,renewal
+2024-12-01,opp_003,cust_011,enterprise,Proposal,45000.00,2025-03-15,expansion
+2025-01-01,opp_003,cust_011,enterprise,Negotiation,45000.00,2025-03-15,expansion
+2025-02-01,opp_003,cust_011,enterprise,Negotiation,48000.00,2025-03-20,expansion
+2024-12-01,opp_004,,medium,Prospecting,8900.00,2025-04-01,new_biz
+2025-01-01,opp_004,,medium,Prospecting,8900.00,2025-04-01,new_biz
+2025-02-01,opp_004,,medium,Discovery,8900.00,2025-04-01,new_biz
+2024-12-01,opp_005,cust_020,enterprise,Negotiation,32000.00,2024-12-15,expansion
+2025-01-01,opp_005,cust_020,enterprise,Closed Won,32000.00,2024-12-15,expansion
+2025-02-01,opp_005,cust_020,enterprise,Closed Won,32000.00,2024-12-15,expansion
+2024-12-01,opp_006,cust_009,medium,Discovery,5200.00,2025-01-15,renewal
+2025-01-01,opp_006,cust_009,medium,Proposal,5200.00,2025-01-15,renewal
+2025-02-01,opp_006,cust_009,medium,Closed Lost,5200.00,2025-01-15,renewal
+2024-12-01,opp_007,,large,Prospecting,22000.00,2025-05-01,new_biz
+2025-01-01,opp_007,,large,Prospecting,22000.00,2025-05-01,new_biz
+2025-02-01,opp_007,,large,Discovery,22000.00,2025-05-01,new_biz
+2024-12-01,opp_008,cust_022,large,Proposal,15000.00,2025-02-28,expansion
+2025-01-01,opp_008,cust_022,large,Negotiation,15000.00,2025-02-28,expansion
+2025-02-01,opp_008,cust_022,large,Closed Won,15200.00,2025-02-28,expansion
+2024-12-01,opp_009,cust_033,smb,Discovery,2100.00,2025-01-31,renewal
+2025-01-01,opp_009,cust_033,smb,Proposal,2100.00,2025-01-31,renewal
+2025-02-01,opp_009,cust_033,smb,Closed Won,2100.00,2025-01-31,renewal
+2024-12-01,opp_010,cust_046,large,Negotiation,28000.00,2025-01-15,expansion
+2025-01-01,opp_010,cust_046,large,Closed Won,28000.00,2025-01-15,expansion
+2025-02-01,opp_010,cust_046,large,Closed Won,28000.00,2025-01-15,expansion
+2024-12-01,opp_011,,enterprise,Prospecting,95000.00,2025-06-30,new_biz
+2025-01-01,opp_011,,enterprise,Prospecting,95000.00,2025-06-30,new_biz
+2025-02-01,opp_011,,enterprise,Discovery,95000.00,2025-06-30,new_biz
+2024-12-01,opp_012,cust_030,large,Discovery,12000.00,2025-03-01,renewal
+2025-01-01,opp_012,cust_030,large,Proposal,12000.00,2025-03-01,renewal
+2025-02-01,opp_012,cust_030,large,Negotiation,12000.00,2025-03-15,renewal
+2024-12-01,opp_013,cust_039,large,Proposal,18500.00,2025-02-28,expansion
+2025-01-01,opp_013,cust_039,large,Negotiation,18500.00,2025-02-28,expansion
+2025-02-01,opp_013,cust_039,large,Closed Won,19000.00,2025-02-28,expansion
+2024-12-01,opp_014,,medium,Discovery,6500.00,2025-03-15,new_biz
+2025-01-01,opp_014,,medium,Proposal,6500.00,2025-03-15,new_biz
+2025-02-01,opp_014,,medium,Closed Lost,6500.00,2025-03-15,new_biz
+2024-12-01,opp_015,cust_029,enterprise,Negotiation,55000.00,2024-12-20,expansion
+2025-01-01,opp_015,cust_029,enterprise,Closed Won,55000.00,2024-12-20,expansion
+2025-02-01,opp_015,cust_029,enterprise,Closed Won,55000.00,2024-12-20,expansion
