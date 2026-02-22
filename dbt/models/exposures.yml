@@ -1,0 +1,26 @@
+# Exposures: downstream dashboards/reports that consume these marts.
+# Used by dbt docs for lineage and impact analysis.
+
+version: 2
+
+exposures:
+  - name: Executive Forecast Summary
+    type: dashboard
+    description: Executive view of revenue forecast, intervals, and ARR waterfall.
+    depends_on:
+      - ref('mart_executive_forecast_summary')
+      - ref('fct_revenue_forecast_with_intervals')
+      - ref('mart_arr_waterfall_monthly')
+
+  - name: ARR Waterfall
+    type: dashboard
+    description: Monthly ARR waterfall and customer-level bridge.
+    depends_on:
+      - ref('mart_arr_waterfall_monthly')
+      - ref('mart_arr_bridge_customer_monthly')
+
+  - name: Churn Risk Watchlist
+    type: dashboard
+    description: At-risk customers and renewal probabilities for action.
+    depends_on:
+      - ref('mart_churn_risk_watchlist')

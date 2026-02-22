@@ -3,10 +3,12 @@
 dbt/target/
 dbt/logs/
 dbt/dbt_packages/
+dbt/profiles/.user.yml
 __pycache__/
 .DS_Store
 .idea/
 .vscode/
+.cursor/
 
 # ML artifacts and outputs (directories kept via .gitkeep)
 ml/artifacts/*

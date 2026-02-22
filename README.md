@@ -63,6 +63,25 @@ Profile is in `dbt/profiles/profiles.yml` (DuckDB at `../warehouse/revenue_forec
 
 ---
 
+## How to explore the outputs
+
+After `dbt run`, the main **marts** to explore (e.g. in a BI tool or `dbt docs serve`) and what each answers:
+
+| Mart | What it answers |
+|------|------------------|
+| **mart_executive_forecast_summary** | High-level forecast and scenario summary for execs. |
+| **fct_revenue_forecast_with_intervals** | Revenue forecast by month with best/base/worst (or confidence) intervals. |
+| **mart_arr_waterfall_monthly** | Month-over-month ARR movement: new, expansion, churn, net. |
+| **mart_arr_bridge_customer_monthly** | ARR change by customer (who drove growth or churn). |
+| **mart_churn_risk_watchlist** | Which customers are at risk and their renewal probabilities. |
+| **mart_bookings_vs_revenue_monthly** | Bookings vs recognized revenue for reconciliation. |
+| **mart_forecast_coverage_metrics** | How much of ARR/forecast is covered by models vs assumptions. |
+| **mart_forecast_explainability_monthly** | Why the forecast changed (renewals, new biz, expansion, etc.). |
+
+Exposures in `dbt/models/exposures.yml` (Executive Forecast Summary, ARR Waterfall, Churn Risk Watchlist) map these marts to downstream dashboards for lineage in `dbt docs`.
+
+---
+
 ## Reproducibility & local setup
 
 **Requirements:** Python 3.9+, Git.
@@ -92,11 +111,16 @@ Profile is in `dbt/profiles/profiles.yml` (DuckDB at `../warehouse/revenue_forec
 
 ---
 
+## CI
+
+A GitHub Actions workflow runs on every **push to `main`** and on every **pull request** targeting `main`. It uses `ubuntu-latest` and Python 3.11, installs dependencies from `requirements.txt`, creates the `warehouse/` directory (DuckDB is created at `warehouse/revenue_forecasting.duckdb` at runtime), and runs dbt from the `dbt/` directory with `DBT_PROFILES_DIR=./profiles`. Steps: `dbt --version`, `dbt debug`, `dbt seed --full-refresh`, `dbt run`, `dbt test`. No secrets are required. Add a status badge in your README from your repository’s Actions tab if desired.
+
+---
+
 ## Future improvements
 
 - **Python layer:** Scenario runner scripts (best/base/worst) and optional statistical or ML-based forecast components.
 - **Documentation:** dbt docs generate + `docs/` content for architecture and scenario definitions.
-- **CI:** GitHub Actions (or similar) for `dbt build` and tests on push/PR.
 - **Data:** Optional connectors or pipelines for live CRM/usage sources; keep seeds for demos and tests.
 - **Marts:** Formal forecast fact tables with scenario keys and versioning.
 

@@ -5,6 +5,7 @@ version: 2
 
 models:
   - name: ml_features__renewal
+    tags: [intermediate, forecasting]
     description: |
       Features for renewal ML model. Grain: company_id x customer_id x renewal_month.
       All features as-of as_of_month (renewal_month - 1). No post-renewal leakage.
@@ -37,6 +38,7 @@ models:
             - renewal_month
 
   - name: ml_labels__renewal
+    tags: [intermediate, forecasting]
     description: |
       Labels for renewal ML. Grain: company_id x customer_id x renewal_month.
       label_renewed: 1 if revenue in renewal_month or next 2 months; 0 if zero in all three.
@@ -60,6 +62,7 @@ models:
             - renewal_month
 
   - name: ml_dataset__renewal
+    tags: [intermediate, forecasting]
     description: |
       Joined features + labels for renewal model training. Grain: company_id x customer_id x renewal_month.
     columns:
@@ -89,6 +92,7 @@ models:
             - renewal_month
 
   - name: ml_predictions__renewal
+    tags: [intermediate, forecasting]
     description: |
       Placeholder: reads ML renewal predictions from Parquet (ml/outputs/predictions/renewal_predictions.parquet).
       TODO: Full integration to blend p_renew_ml with deterministic p_renew in forecast.

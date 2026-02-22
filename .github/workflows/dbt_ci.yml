@@ -1,0 +1,55 @@
+name: dbt CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dbt:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create warehouse directory
+        run: mkdir -p warehouse
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: dbt version
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt --version
+
+      - name: dbt debug
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt debug
+
+      - name: dbt seed
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt seed --full-refresh
+
+      - name: dbt run
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt run
+
+      - name: dbt test
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt test

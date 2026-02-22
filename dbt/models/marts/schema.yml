@@ -3,6 +3,7 @@ version: 2
 
 models:
   - name: dim_customer
+    tags: [marts, finance]
     description: "Customer dimension. One row per customer per company; source of segment for revenue rollups."
     columns:
       - name: company_id
@@ -30,6 +31,7 @@ models:
             - customer_id
 
   - name: dim_product
+    tags: [marts, finance]
     description: "Product dimension. One row per product per company."
     columns:
       - name: company_id
@@ -53,6 +55,7 @@ models:
             - product_id
 
   - name: fct_subscription_line_item_monthly
+    tags: [marts, finance]
     description: "Subscription line items expanded to monthly grain. Grain: company_id x customer_id x product_id x contract_id x month. MRR is monthly (annual / 12 when billing_frequency = annual)."
     columns:
       - name: company_id
@@ -94,6 +97,7 @@ models:
             - month
 
   - name: fct_revenue_actuals_monthly
+    tags: [marts, finance]
     description: "Revenue actuals by company, month, and segment. Grain: company_id x month x segment. Sum of MRR from fct_subscription_line_item_monthly."
     columns:
       - name: company_id
@@ -118,6 +122,7 @@ models:
             - segment
 
   - name: fct_forecast_component_renewals
+    tags: [marts, forecasting]
     description: |
       Forecast component: renewal MRR. Grain: company_id x month x customer_id x scenario.
       Input: int_renewal_probabilities. expected_renewal_mrr = current_mrr_pre_renewal * p_renew
@@ -159,6 +164,7 @@ models:
             - scenario
 
   - name: fct_forecast_component_new_biz
+    tags: [marts, forecasting]
     description: |
       Forecast component: new business MRR. Grain: company_id x month x opportunity_id x scenario.
       Inputs: int_pipeline_weighted_value (expected_value as ARR), int_pipeline_slippage
@@ -203,6 +209,7 @@ models:
             - scenario
 
   - name: fct_forecast_component_expansion
+    tags: [marts, forecasting]
     description: |
       Forecast component: expansion MRR uplift. Grain: company_id x month x customer_id x scenario. Uplift from segment_config by slope bucket.
       Inputs: fct_subscription_line_item_monthly (current mrr), int_customer_health_monthly (trend),
@@ -247,6 +254,7 @@ models:
             - scenario
 
   - name: fct_revenue_forecast_monthly
+    tags: [marts, forecasting]
     description: |
       Monthly revenue forecast by company, scenario and segment. Grain: company_id x month x scenario x segment. Scenario completeness per company.
       Uses int_month_spine for full month coverage; base/upside/downside for every company/month/segment.
@@ -293,6 +301,7 @@ models:
             - segment
 
   - name: fct_forecast_backtest_metrics
+    tags: [marts, forecasting]
     description: |
       Backtest metrics by company, month, scenario, and segment. error = forecast_mrr_total - actual_mrr;
       abs_error = |error|; ape = abs_error / actual_mrr (null if actual_mrr = 0);
@@ -339,6 +348,7 @@ models:
             - segment
 
   - name: fct_revenue_forecast_monthly_prior_snapshot
+    tags: [marts, forecasting]
     description: |
       Placeholder for prior forecast snapshot. Used by int_forecast_drift for drift monitoring.
       This model returns zero rows until replaced. To enable drift monitoring, replace with a model
@@ -352,6 +362,7 @@ models:
       - name: forecast_mrr_total
 
   - name: fct_revenue_forecast_with_intervals
+    tags: [marts, forecasting]
     description: |
       Monthly revenue forecast with backtest-derived prediction intervals. Does not change prior models.
       Inputs: fct_revenue_forecast_monthly, fct_forecast_backtest_metrics.
@@ -392,6 +403,7 @@ models:
             - scenario
 
   - name: mart_executive_forecast_summary
+    tags: [marts, forecasting]
     description: |
       Executive summary mart for presentation. Grain: company_id x month x scenario (aggregated across segments).
       All metrics default to 0 where null unless noted. Built from fct_revenue_forecast_monthly,
@@ -439,4 +451,480 @@ models:
           combination_of_columns:
             - company_id
             - month
+            - scenario
+
+  - name: mart_arr_waterfall_monthly
+    tags: [marts, finance]
+    description: |
+      ARR Waterfall (ARR bridge): month-over-month ARR movement by segment and scenario.
+      Grain: company_id x month x segment x scenario. ARR = 12 * MRR.
+      Base scenario from fct_subscription_line_item_monthly (actuals); upside/downside from fct_revenue_forecast_monthly.
+      Waterfall: starting_arr, new_arr, expansion_arr, contraction_arr, churn_arr, ending_arr; net_new_arr, nrr, grr.
+      Months from int_month_spine; scenario completeness (base, upside, downside).
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: starting_arr
+        description: "ARR at start of month (prior month ending)."
+      - name: new_arr
+        description: "New ARR from customers with 0 prior month, >0 this month."
+      - name: expansion_arr
+        description: "Upsell / quantity or price increases for existing customers."
+      - name: contraction_arr
+        description: "Downgrades for existing customers."
+      - name: churn_arr
+        description: "Lost ARR from customers present prior month, 0 this month."
+      - name: ending_arr
+        description: "ARR at end of month; should equal starting_arr + new_arr + expansion_arr - contraction_arr - churn_arr."
+      - name: net_new_arr
+        description: "new_arr + expansion_arr - contraction_arr - churn_arr."
+      - name: nrr
+        description: "(starting_arr + expansion_arr - contraction_arr - churn_arr) / nullif(starting_arr, 0)."
+      - name: grr
+        description: "(starting_arr - contraction_arr - churn_arr) / nullif(starting_arr, 0)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+            - scenario
+
+  - name: mart_arr_bridge_customer_monthly
+    tags: [marts, finance]
+    description: |
+      Customer-level ARR bridge for debugging mart_arr_waterfall_monthly.
+      Grain: company_id x month x customer_id x segment x scenario.
+      Same classification as waterfall: NEW, EXPANSION, CONTRACTION, CHURN, FLAT.
+      Base from actuals; upside/downside repeat same customer-level actuals. Deterministic order.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: arr_prior_month
+        description: "ARR in prior month (12 * MRR)."
+      - name: arr_current_month
+        description: "ARR in current month (12 * MRR)."
+      - name: arr_delta
+        description: "arr_current_month - arr_prior_month; negative for CONTRACTION."
+      - name: bridge_category
+        description: "NEW, EXPANSION, CONTRACTION, CHURN, or FLAT."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [NEW, EXPANSION, CONTRACTION, CHURN, FLAT]
+      - name: churn_flag
+        description: "True when bridge_category = CHURN."
+      - name: new_flag
+        description: "True when bridge_category = NEW."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - customer_id
+            - scenario
+
+  - name: mart_bookings_vs_revenue_monthly
+    tags: [marts, finance]
+    description: |
+      Bookings vs revenue recognition by month and segment. Grain: company_id x month x segment.
+      Assumption: Revenue recognition simplified as monthly MRR (recognized_arr = 12 * actual_mrr); no deferred schedule.
+      bookings_arr = ARR from contracts starting in the month (int_bookings_monthly).
+      bookings_to_revenue_ratio = bookings_arr / nullif(recognized_arr, 0). Rolling 3m = current + 2 preceding months.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: bookings_arr
+        description: "ARR from contracts that started in the month (sum from int_bookings_monthly)."
+      - name: recognized_arr
+        description: "12 * actual_mrr; simplified revenue recognition as monthly MRR expressed as ARR."
+      - name: bookings_to_revenue_ratio
+        description: "bookings_arr / nullif(recognized_arr, 0); null when recognized_arr = 0."
+      - name: rolling_3m_bookings_arr
+        description: "Sum of bookings_arr over current and two preceding months."
+      - name: rolling_3m_recognized_arr
+        description: "Sum of recognized_arr over current and two preceding months."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+
+  - name: mart_arr_decomposition_price_qty
+    tags: [marts, finance]
+    description: |
+      Price vs quantity decomposition of ARR changes. Grain: company_id x month x customer_id x product_family.
+      qty_effect = qty_delta * prior_price; price_effect = price_delta * current_qty.
+      residual = mrr_delta - qty_effect - price_effect (can be non-zero due to rounding and
+      quantity-weighted average price across lines within product_family).
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests: [not_null]
+      - name: product_family
+        description: "Product family from dim_product."
+        tests: [not_null]
+      - name: qty_total
+        description: "Sum of quantity in month for this customer x product_family."
+      - name: avg_unit_price_effective
+        description: "Quantity-weighted average unit price (after discount); mrr / qty_total."
+      - name: mrr
+        description: "Total MRR in month for this customer x product_family."
+      - name: prior_qty_total
+        description: "Sum of quantity in prior month."
+      - name: prior_avg_unit_price_effective
+        description: "Quantity-weighted average unit price in prior month."
+      - name: qty_delta
+        description: "qty_total - prior_qty_total."
+      - name: price_delta
+        description: "avg_unit_price_effective - prior_avg_unit_price_effective."
+      - name: mrr_delta
+        description: "mrr - prior_mrr."
+      - name: qty_effect
+        description: "qty_delta * prior_avg_unit_price_effective."
+      - name: price_effect
+        description: "price_delta * qty_total."
+      - name: residual
+        description: "mrr_delta - qty_effect - price_effect; small in practice (rounding, avg price aggregation)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - customer_id
+            - product_family
+
+  - name: mart_top_arr_movers
+    tags: [marts, finance, forecasting]
+    description: |
+      Executive view: top 10 customers by absolute ARR delta vs prior month, per month and segment.
+      Grain: company_id x month x segment x rank (rank 1..10). One row per customer per month per segment.
+      Uses mart_arr_bridge_customer_monthly (base), dim_customer, int_customer_health_monthly.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: rank
+        description: "Rank 1..10 by abs(arr_delta) within month and segment."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+      - name: customer_id
+        description: "Customer identifier."
+        tests: [not_null]
+      - name: customer_name
+        description: "Customer display name."
+      - name: arr_delta
+        description: "ARR change vs prior month."
+      - name: bridge_category
+        description: "NEW, EXPANSION, CONTRACTION, CHURN, or FLAT."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [NEW, EXPANSION, CONTRACTION, CHURN, FLAT]
+      - name: health_score_1_10
+        description: "Health score at this month (1-10); null if no health data."
+      - name: slope_bucket
+        description: "Usage trend: declining, flat, or growing; null if no health data."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+            - rank
+
+  - name: mart_churn_risk_watchlist
+    tags: [marts, forecasting]
+    description: |
+      Churn risk watchlist: customers with renewal in next 3 months OR health_score <= 4 OR declining usage.
+      Grain: company_id x month x customer_id. risk_rank = severity rank within segment.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "Report month (first day of month)."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: months_to_renewal
+        description: "Months until next renewal; null if not in renewal window."
+      - name: current_arr
+        description: "Current ARR (12 * MRR) for this customer in report month."
+      - name: p_renew
+        description: "Base scenario renewal probability; null if no renewal in model."
+      - name: health_score_1_10
+        description: "Health score 1-10."
+      - name: slope_bucket
+        description: "Usage trend: declining, flat, or growing."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [declining, flat, growing]
+      - name: risk_reason
+        description: "Concatenated risk reasons (e.g. Renewal in N months; Low health; Declining usage)."
+      - name: risk_rank
+        description: "Rank within segment by risk severity (declining + low health first)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - customer_id
+
+  - name: mart_forecast_coverage_metrics
+    tags: [marts, forecasting, finance]
+    description: |
+      Forecast coverage metrics for governance. Grain: company_id x month x segment x scenario.
+      pipeline_coverage_ratio = new_biz MRR next 3m / forecast total MRR next 3m. renewal_coverage_ratio = ARR up for renewal next 3m / (4 * forecast total next 3m). concentration_ratio_top5 = top 5 customers ARR share. new_logo_share = new_arr / ending_arr from waterfall. Assumptions: next 3 months = report_month+1..+3; renewal ARR = current-month MRR for contracts ending in that window, annualized.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "Report month (first day of month)."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: pipeline_coverage_ratio
+        description: "Pipeline expected value (new_biz) next 3m / forecast total next 3m; 0-1 typically."
+      - name: renewal_coverage_ratio
+        description: "ARR up for renewal next 3m / total forecast ARR next 3m (annualized)."
+      - name: concentration_ratio_top5
+        description: "Top 5 customers ARR share in segment for the month; 0-1."
+      - name: new_logo_share
+        description: "new_arr / ending_arr from waterfall; null when ending_arr = 0."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+            - scenario
+
+  - name: mart_arr_reconciliation_checks
+    tags: [marts, finance]
+    description: |
+      ARR reconciliation (trust/audit). Grain: company_id x month x segment x scenario.
+      Validates ending_arr = starting_arr + new_arr + expansion_arr - contraction_arr - churn_arr.
+      ending_arr_recomputed and arr_reconciliation_diff; arr_reconciliation_ok_flag when abs(diff) <= 0.01.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: starting_arr
+      - name: new_arr
+      - name: expansion_arr
+      - name: contraction_arr
+      - name: churn_arr
+      - name: ending_arr
+      - name: ending_arr_recomputed
+        description: "starting_arr + new_arr + expansion_arr - contraction_arr - churn_arr."
+      - name: arr_reconciliation_diff
+        description: "ending_arr - ending_arr_recomputed."
+      - name: arr_reconciliation_ok_flag
+        description: "True when abs(arr_reconciliation_diff) <= 0.01."
+        tests:
+          - assert_reconciliation_ok_flag:
+              column_name: arr_reconciliation_ok_flag
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+            - scenario
+
+  - name: mart_forecast_reconciliation_checks
+    tags: [marts, forecasting]
+    description: |
+      Forecast reconciliation (trust/audit). Grain: company_id x month x segment x scenario.
+      Validates forecast_mrr_total = sum of renewal + new_biz + expansion at segment/month/scenario.
+      component_sum_mrr and forecast_component_diff; forecast_reconciliation_ok_flag when abs(diff) <= 0.01.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: forecast_mrr_total
+      - name: component_sum_mrr
+        description: "forecast_mrr_renewal + forecast_mrr_new_biz + forecast_mrr_expansion."
+      - name: forecast_component_diff
+        description: "forecast_mrr_total - component_sum_mrr."
+      - name: forecast_reconciliation_ok_flag
+        description: "True when abs(forecast_component_diff) <= 0.01."
+        tests:
+          - assert_reconciliation_ok_flag:
+              column_name: forecast_reconciliation_ok_flag
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+            - scenario
+
+  - name: mart_forecast_explainability_monthly
+    tags: [marts, forecasting]
+    description: |
+      Forecast explainability: month-over-month change by driver. Grain: company_id x month x segment x scenario.
+      renewal_driver_delta = change in renewal component; pipeline_driver_delta = change in new_biz;
+      expansion_driver_delta = change in expansion; residual_delta = forecast_delta - sum of drivers.
+      top_driver = driver with largest abs(delta); top_driver_share_pct = its share of abs(forecast_delta).
+      Prior month missing => 0. Deterministic approximation; explainability layer only.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: forecast_mrr_total
+      - name: forecast_mrr_total_prior_month
+        description: "Prior month total; 0 when missing."
+      - name: forecast_delta
+        description: "forecast_mrr_total - forecast_mrr_total_prior_month."
+      - name: renewal_driver_delta
+        description: "Change in renewal component (renewal probability / customer set)."
+      - name: pipeline_driver_delta
+        description: "Change in new_biz component (pipeline expected value / stage)."
+      - name: expansion_driver_delta
+        description: "Change in expansion component (uplift / usage trend)."
+      - name: residual_delta
+        description: "forecast_delta minus sum of three drivers (rounding, composition)."
+      - name: top_driver
+        description: "Which driver has largest abs(delta): renewal, pipeline, expansion, or residual."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [renewal, pipeline, expansion, residual]
+      - name: top_driver_share_pct
+        description: "abs(top_driver_delta) / nullif(abs(forecast_delta), 0); null when forecast_delta = 0."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
             - scenario

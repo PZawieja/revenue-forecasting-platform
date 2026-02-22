@@ -4,6 +4,7 @@ version: 2
 
 models:
   - name: stg_customers
+    tags: [staging]
     description: "Staging customer master from seeds. company_id + customer_id unique. Standardized segment (lowercase), segment_group (enterprise_large vs mid_smb)."
     columns:
       - name: company_id
@@ -25,6 +26,7 @@ models:
             - customer_id
 
   - name: stg_products
+    tags: [staging]
     description: "Staging product catalog. company_id + product_id unique. Standardized product_family (lowercase), is_recurring as boolean."
     columns:
       - name: company_id
@@ -44,6 +46,7 @@ models:
             - product_id
 
   - name: stg_subscription_line_items
+    tags: [staging]
     description: "Staging subscription line items. company_id on all; composite FK (company_id, customer_id) -> stg_customers, (company_id, product_id) -> stg_products (see tests/assert_stg_*_*_fk.sql). Month-truncated contract_start_month, contract_end_month, renewal_month; lowercase status and billing_frequency."
     columns:
       - name: company_id
@@ -75,6 +78,7 @@ models:
             - product_id
 
   - name: stg_pipeline_opportunities_snapshot
+    tags: [staging]
     description: "Staging pipeline snapshots. company_id on all; when customer_id is not null, (company_id, customer_id) must exist in stg_customers (see tests/assert_stg_pipeline_opportunities_customer_fk.sql). snapshot_month and expected_close_month (month-truncated); lowercase segment, stage, opportunity_type."
     columns:
       - name: company_id
@@ -104,6 +108,7 @@ models:
             - opportunity_id
 
   - name: stg_usage_monthly
+    tags: [staging]
     description: "Staging monthly usage. company_id on all; composite FK (company_id, customer_id) -> stg_customers (see tests/assert_stg_usage_monthly_customer_fk.sql). month as date; usage_per_user = usage_count / nullif(active_users, 0); feature_key lowercase."
     columns:
       - name: company_id

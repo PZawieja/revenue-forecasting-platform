@@ -3,6 +3,7 @@ version: 2
 
 models:
   - name: int_month_spine
+    tags: [intermediate, forecasting]
     description: |
       Monthly date spine for forecasting and backtesting. Covers the range of months
       present in subscription line items (contract start/end) and pipeline snapshots,
@@ -14,7 +15,44 @@ models:
           - not_null
           - unique
 
+  - name: int_bookings_monthly
+    tags: [intermediate, finance]
+    description: |
+      Bookings by month and customer: contracted value that *starts* in the month (contract_start_month).
+      Grain: company_id x month x customer_id x segment.
+      Assumption: Bookings attributed to contract start month only (no proration).
+      bookings_mrr_equivalent = MRR equivalent of new contracts starting in the month;
+      bookings_arr = 12 * bookings_mrr_equivalent.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month (contract start month)."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: bookings_mrr_equivalent
+        description: "Monthly MRR equivalent of contracts starting in this month."
+      - name: bookings_arr
+        description: "12 * bookings_mrr_equivalent; ARR attributed to this month's bookings."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - customer_id
+            - segment
+
   - name: int_customer_health_monthly
+    tags: [intermediate, forecasting]
     description: |
       Monthly customer health score (1-10). Grain: company_id x customer_id x month.
       Weights from health_weights_config (company_id, segment_group): weight_crm, weight_usage, weight_trend, default_crm_if_null.
@@ -63,6 +101,7 @@ models:
             - month
 
   - name: int_customer_cohorts
+    tags: [intermediate]
     description: |
       Customer cohorts by first contract start. Grain: one row per (company_id, customer_id).
       cohort_month = min(contract_start_month) across all contracts for that customer.
@@ -83,6 +122,7 @@ models:
             - customer_id
 
   - name: int_cohort_churn_rates
+    tags: [intermediate]
     description: |
       Cohort-based churn and revenue retention by tenure. Grain: company_id x cohort_month x tenure_month x segment.
       tenure_month = months since cohort_month (0 = cohort month, 1 = first full month after, etc.).
@@ -119,6 +159,7 @@ models:
             - segment
 
   - name: int_renewal_probabilities
+    tags: [intermediate, forecasting]
     description: |
       Estimated renewal probability per customer per renewal_month per scenario.
       Grain: company_id x customer_id x renewal_month x scenario (base, upside, downside).
@@ -170,6 +211,7 @@ models:
             - scenario
 
   - name: int_forecast_confidence
+    tags: [intermediate, forecasting]
     description: |
       Forecast confidence score by company x month x segment x scenario. Does not modify forecast totals.
       Inputs: fct_revenue_forecast_monthly (totals and new_biz share), int_customer_health_monthly,
@@ -208,6 +250,7 @@ models:
             - scenario
 
   - name: int_forecast_drift
+    tags: [intermediate, forecasting]
     description: |
       Forecast drift monitoring. Grain: company_id x month x scenario x segment.
       Compares current forecast (fct_revenue_forecast_monthly) to prior snapshot for the same company/month.
@@ -248,6 +291,7 @@ models:
             - scenario
 
   - name: int_stage_probabilities
+    tags: [intermediate, forecasting]
     description: |
       Stage close probabilities from stage_probability_config (company_id, segment, stage).
       Columns: company_id, segment, stage, p_base, p_upside, p_downside. Used to weight pipeline value.
@@ -281,6 +325,7 @@ models:
             - stage
 
   - name: int_pipeline_weighted_value
+    tags: [intermediate, forecasting]
     description: |
       Pipeline snapshot with stage-based close probability and expected value per scenario.
       Grain: company_id x snapshot_date x opportunity_id x scenario.
@@ -327,6 +372,7 @@ models:
             - scenario
 
   - name: int_pipeline_slippage
+    tags: [intermediate, forecasting]
     description: |
       Close-date slippage from slippage_config (company_id, segment_group, stage).
       expected_start_month = expected_close_month + slippage_months (when deal might actually start if slipped).
