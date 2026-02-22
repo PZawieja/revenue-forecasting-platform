@@ -35,6 +35,8 @@ except Exception:
 
 if months_df.empty or "month" not in months_df.columns:
     st.info("No forecast months available. Run dbt to build marts.")
+    run_checklist()
+    footer()
     st.stop()
 
 months = months_df["month"].tolist()
@@ -73,12 +75,15 @@ st.markdown("---")
 try:
     qw, pw = get_arr_waterfall(month_val, scenario, segment)
     df = read_sql(qw, pw)
-except Exception as e:
+except Exception:
     st.warning("Could not load ARR waterfall. Run dbt to build mart_arr_waterfall_monthly.")
+    run_checklist()
+    footer()
     st.stop()
 
 if df.empty:
     st.info("No ARR waterfall row for this month/scenario/segment.")
+    footer()
     st.stop()
 
 row = df.iloc[0]
@@ -140,3 +145,4 @@ if alt is not None:
     st.altair_chart(chart, use_container_width=True)
 else:
     st.bar_chart(bar_df.set_index("label")["value"])
+footer(month_val if month_val else None)

@@ -19,20 +19,19 @@ from src.queries import (
     get_latest_confidence,
     get_latest_exec_summary,
 )
-from src.ui import section_header
+from src.ui import run_checklist, section_header, footer
 
 st.set_page_config(page_title="Revenue Intelligence Cockpit", layout="wide")
 
 ok, msg = is_data_available()
 if not ok:
     st.warning(msg)
-    st.markdown("**Setup checklist:**")
-    st.markdown("1. `./scripts/dbt_seed.sh` and `./scripts/dbt_run.sh` to build marts.")
-    st.markdown("2. (Optional) `./scripts/run_all.sh` to add ML and backtests.")
-    st.markdown("3. Re-run `./scripts/dbt_run.sh` if you ran ML, then refresh this app.")
+    run_checklist()
+    footer()
     st.stop()
 
 section_header("Revenue Intelligence Executive Cockpit", level=1)
+st.markdown("One-page snapshot to align on forecast, confidence, and coverage. Use it to decide where to invest and where risk is concentrated.")
 
 # Top controls
 scenario = st.selectbox(
@@ -60,11 +59,10 @@ try:
     df_conf = read_sql(q_conf, p_conf)
     df_cov = read_sql(q_cov, p_cov)
     df_months = read_sql(q_months, p_months)
-except Exception as e:
+except Exception:
     st.warning("Run dbt + ML pipeline first to populate marts.")
-    st.markdown("**Setup checklist:**")
-    st.markdown("1. `./scripts/dbt_seed.sh` and `./scripts/dbt_run.sh`")
-    st.markdown("2. (Optional) `./scripts/run_all.sh` for ML; then `./scripts/dbt_run.sh`")
+    run_checklist()
+    footer()
     st.stop()
 
 # Latest month for data freshness
@@ -111,9 +109,10 @@ with cols[3]:
     val = f"{pipeline_coverage:.1%}" if pipeline_coverage is not None else "—"
     st.metric("Pipeline coverage ratio", val, None)
 
-# Data freshness
+# Data freshness and footer
 st.markdown("")
 if latest_month is not None:
     st.caption(f"**Data freshness:** Latest month in tables: {latest_month}")
 else:
     st.caption("**Data freshness:** No months in forecast tables.")
+footer(str(latest_month) if latest_month is not None else None)

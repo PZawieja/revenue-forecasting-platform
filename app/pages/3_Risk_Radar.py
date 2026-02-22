@@ -18,13 +18,16 @@ from src.queries import (
     get_months_for_risk,
     get_top_arr_movers,
 )
-from src.ui import section_header
+from src.ui import footer, run_checklist, section_header
 
 if not is_data_available()[0]:
     st.warning("Run dbt + ML pipeline first to populate marts.")
+    run_checklist()
+    footer()
     st.stop()
 
 section_header("Risk Radar", level=1)
+st.markdown("Spot at-risk accounts and top ARR movers. Use for renewal prioritization and account-level action planning.")
 
 # Month list from watchlist
 try:
@@ -35,6 +38,8 @@ except Exception:
 
 if months_df.empty or "month" not in months_df.columns:
     st.info("No risk data available. Run dbt to build mart_churn_risk_watchlist.")
+    run_checklist()
+    footer()
     st.stop()
 
 months = months_df["month"].tolist()
@@ -97,3 +102,4 @@ with cols_right:
         st.dataframe(display_m, use_container_width=True, hide_index=True)
         csv_m = display_m.to_csv(index=False)
         st.download_button("Download CSV", data=csv_m, file_name="top_arr_movers.csv", mime="text/csv", key="dl_movers")
+footer(month_val if month_val else None)

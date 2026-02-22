@@ -19,13 +19,16 @@ from src.queries import (
     get_latest_confidence,
     get_latest_coverage,
 )
-from src.ui import section_header
+from src.ui import footer, run_checklist, section_header
 
 if not is_data_available()[0]:
     st.warning("Run dbt + ML pipeline first to populate marts.")
+    run_checklist()
+    footer()
     st.stop()
 
 section_header("Forecast vs Actual", level=1)
+st.markdown("Compare forecast to actuals and intervals to support planning and variance review.")
 
 # Controls
 scenario = st.selectbox("Scenario", options=["base", "upside", "downside"], index=0, key="forecast_scenario")
@@ -55,6 +58,8 @@ if df.empty:
 
 if df.empty:
     st.info("No forecast data for this scenario/segment. Run dbt to build forecast marts.")
+    run_checklist()
+    footer()
     st.stop()
 
 # Restrict to last N months
@@ -168,3 +173,5 @@ while len(bullets) < 3:
     break
 for b in bullets[:3]:
     st.markdown(f"- {b}")
+latest_month = str(df["month"].iloc[-1])[:10] if len(df) > 0 and "month" in df.columns else None
+footer(latest_month)

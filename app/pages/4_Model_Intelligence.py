@@ -18,13 +18,16 @@ from src.queries import (
     get_latest_calibration_bins,
     get_model_selection,
 )
-from src.ui import section_header
+from src.ui import footer, run_checklist, section_header
 
 if not is_data_available()[0]:
     st.warning("Run dbt + ML pipeline first to populate marts.")
+    run_checklist()
+    footer()
     st.stop()
 
 section_header("Model Intelligence", level=1)
+st.markdown("Choose champion models and review backtest and calibration. Use to justify ML choices and monitor forecast quality.")
 
 # Try ML tables (may not exist)
 try:
@@ -110,3 +113,4 @@ else:
     else:
         st.line_chart(df_cal.set_index("bin_id")[["p_pred_mean", "y_true_rate"]])
     st.caption("Gray dashed line = ideal (perfect calibration).")
+footer()
