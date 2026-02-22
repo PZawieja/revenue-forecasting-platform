@@ -126,6 +126,24 @@ make demo
 
 `make demo` runs a full build (dbt → ML → dbt) then starts the Streamlit app. For build-only: `make build`. To run only the app: `make app`.
 
+### Demo Data Pack
+
+A single command produces a complete **demo data pack** locally: realistic sim data (or demo seeds), validation, dbt marts, ML training and backtests, calibration, champion selection, dbt rerun, CSV artifact export, and the narrative revenue intelligence report.
+
+From repo root:
+
+```bash
+make setup
+make demo_pack
+```
+
+- **Outputs (all under repo root):**
+  - **`docs/artifacts/*.csv`** — exported marts and ML tables (gitignored).
+  - **`docs/reports/revenue_intelligence_report.md`** — narrative report (gitignored; folder kept via `docs/reports/.gitkeep`).
+- **Streamlit:** After the pack finishes, run `make app` (or `streamlit run app/Home.py`) to demo the cockpit against the generated data.
+
+`make demo_pack` runs `./scripts/demo_data_pack.sh --mode sim` by default. For demo (seed) mode: `./scripts/demo_data_pack.sh --mode demo`. Optional args: `--scenario base`, `--months 6`.
+
 ### Export artifacts
 
 Export key marts and ML outputs as CSVs into `docs/artifacts/` for sharing without running Streamlit (e.g. for docs or handoffs). Generated `*.csv` files are gitignored; the folder is kept via `docs/artifacts/.gitkeep`.
@@ -136,6 +154,41 @@ make build
 ```
 
 Exports: executive forecast summary (latest 12 months), ARR waterfall (latest 6 months), churn risk watchlist (top 20), backtest metrics, `ml_model_selection`, and calibration bins for preferred models.
+
+### Generate narrative report
+
+Generate a staff/founder-grade **monthly revenue intelligence report** (single Markdown file) from DuckDB marts. Fully local and reproducible; no external APIs or LLM. Generated `*.md` files under `docs/reports/` are gitignored to avoid noisy diffs; the folder is kept via `docs/reports/.gitkeep`.
+
+```bash
+make build
+# or: ./scripts/run_all.sh
+./scripts/generate_report.sh
+```
+
+Output: `docs/reports/revenue_intelligence_report.md`. Custom options (scenario, segment, months, output path): run `python -m forecasting.src.narrative_report --help` from repo root with `PYTHONPATH=.`.
+
+### PDF export
+
+Generate an **investor/board-ready PDF** that summarizes the latest revenue forecast with key tables and charts (forecast vs actual line chart, ARR waterfall bar chart, risk tables, model governance). Fully local (ReportLab + matplotlib); no external services. Generated PDFs under `docs/reports/` are gitignored; the folder is kept via `docs/reports/.gitkeep`.
+
+```bash
+make build
+# or: make demo_pack
+make pdf_report
+```
+
+Output: **`docs/reports/revenue_intelligence_report.pdf`**. Custom options: `python -m forecasting.src.pdf_report --help` from repo root with `PYTHONPATH=.`.
+
+### Export pack (in app)
+
+From the **Streamlit cockpit** (Home page), you can generate a full export pack in one click: demo artifact CSVs, narrative Markdown report, and PDF report. All run locally using the existing Python modules (no shell).
+
+1. **Run Streamlit** from repo root: `streamlit run app/Home.py` (or `make app` after `make build`).
+2. Scroll to the **Export Pack** section near the bottom of the Home page.
+3. Choose **Scenario** (for the report; default matches the page scenario) and **Months** (default 6), then click **Generate Export Pack**.
+4. When generation finishes, use the **Download** buttons to get the Markdown report, PDF report, and (optionally) a ZIP of all CSVs.
+
+**Where files are created:** CSVs are written to **`docs/artifacts/`**; the Markdown and PDF reports to **`docs/reports/`**. If a required table is missing, the app shows an actionable message (e.g. “Run: make build or make demo_pack”) without crashing.
 
 ### Simulation mode
 

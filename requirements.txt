@@ -7,3 +7,5 @@ scikit-learn
 xgboost
 pyyaml
 streamlit
+reportlab
+matplotlib
