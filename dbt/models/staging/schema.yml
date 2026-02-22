@@ -1,0 +1,128 @@
+# Staging layer: one model per seed; company_id on all; standardized types, lowercase enums, derived fields.
+# Composite FKs (company_id, customer_id) and (company_id, product_id) validated by singular tests in tests/.
+version: 2
+
+models:
+  - name: stg_customers
+    description: "Staging customer master from seeds. company_id + customer_id unique. Standardized segment (lowercase), segment_group (enterprise_large vs mid_smb)."
+    columns:
+      - name: company_id
+        description: "Tenant identifier (string)."
+        tests: [not_null]
+      - name: customer_id
+        description: "Unique customer identifier within company."
+        tests: [not_null]
+      - name: segment
+        description: "Customer tier, lowercase (enterprise, large, medium, smb)."
+      - name: segment_group
+        description: "Derived: enterprise_large for enterprise/large, else mid_smb."
+      - name: created_date
+        description: "Customer creation date."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+
+  - name: stg_products
+    description: "Staging product catalog. company_id + product_id unique. Standardized product_family (lowercase), is_recurring as boolean."
+    columns:
+      - name: company_id
+        description: "Tenant identifier (string)."
+        tests: [not_null]
+      - name: product_id
+        description: "Unique product identifier within company."
+        tests: [not_null]
+      - name: product_family
+        description: "Product family, lowercase."
+      - name: is_recurring
+        description: "Whether the product is recurring (boolean)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - product_id
+
+  - name: stg_subscription_line_items
+    description: "Staging subscription line items. company_id on all; composite FK (company_id, customer_id) -> stg_customers, (company_id, product_id) -> stg_products (see tests/assert_stg_*_*_fk.sql). Month-truncated contract_start_month, contract_end_month, renewal_month; lowercase status and billing_frequency."
+    columns:
+      - name: company_id
+        description: "Tenant identifier (string)."
+        tests: [not_null]
+      - name: contract_id
+        description: "Contract identifier within company."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier (within company); composite with company_id must exist in stg_customers."
+        tests: [not_null]
+      - name: product_id
+        description: "Product identifier (within company); composite with company_id must exist in stg_products."
+        tests: [not_null]
+      - name: contract_start_month
+        description: "First day of contract start month (derived)."
+      - name: contract_end_month
+        description: "First day of contract end month (derived)."
+      - name: renewal_month
+        description: "First day of renewal month, aligned to contract end (derived)."
+      - name: status
+        description: "Contract status, lowercase (active, non_renewing, cancelled)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - contract_id
+            - customer_id
+            - product_id
+
+  - name: stg_pipeline_opportunities_snapshot
+    description: "Staging pipeline snapshots. company_id on all; when customer_id is not null, (company_id, customer_id) must exist in stg_customers (see tests/assert_stg_pipeline_opportunities_customer_fk.sql). snapshot_month and expected_close_month (month-truncated); lowercase segment, stage, opportunity_type."
+    columns:
+      - name: company_id
+        description: "Tenant identifier (string)."
+        tests: [not_null]
+      - name: snapshot_date
+        description: "Snapshot date."
+        tests: [not_null]
+      - name: opportunity_id
+        description: "Opportunity identifier within company."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier (within company); null for net-new. Composite with company_id references stg_customers when not null."
+      - name: snapshot_month
+        description: "First day of snapshot month (derived)."
+      - name: expected_close_month
+        description: "First day of expected close month (derived)."
+      - name: stage
+        description: "Sales stage, lowercase (prospecting, discovery, proposal, negotiation, closed won, closed lost)."
+      - name: opportunity_type
+        description: "Opportunity type, lowercase (new_biz, expansion, renewal)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - snapshot_date
+            - opportunity_id
+
+  - name: stg_usage_monthly
+    description: "Staging monthly usage. company_id on all; composite FK (company_id, customer_id) -> stg_customers (see tests/assert_stg_usage_monthly_customer_fk.sql). month as date; usage_per_user = usage_count / nullif(active_users, 0); feature_key lowercase."
+    columns:
+      - name: company_id
+        description: "Tenant identifier (string)."
+        tests: [not_null]
+      - name: month
+        description: "First day of month (date)."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier (within company); composite with company_id must exist in stg_customers."
+        tests: [not_null]
+      - name: feature_key
+        description: "Feature identifier, lowercase (feature_a, feature_b, feature_c)."
+      - name: usage_per_user
+        description: "Derived: usage_count / nullif(active_users, 0)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - customer_id
+            - feature_key

@@ -1,0 +1,172 @@
+# Config seeds: company-agnostic, parameter-driven forecasting. See docs/configuration.md.
+version: 2
+
+seeds:
+  - name: company_config
+    description: "Company-level settings: currency, forecast horizon, new-biz start-lag by segment."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null, unique]
+      - name: company_name
+        description: "Display name."
+        tests: [not_null]
+      - name: base_currency
+        description: "Base currency code (e.g. USD, EUR)."
+        tests: [not_null]
+      - name: forecast_months_forward
+        description: "Number of months to forecast forward."
+        tests: [not_null]
+      - name: new_biz_start_lag_months_enterprise
+        description: "Months from close to first MRR for enterprise."
+        tests: [not_null]
+      - name: new_biz_start_lag_months_large
+        description: "Months from close to first MRR for large."
+        tests: [not_null]
+      - name: new_biz_start_lag_months_medium
+        description: "Months from close to first MRR for medium."
+        tests: [not_null]
+      - name: new_biz_start_lag_months_smb
+        description: "Months from close to first MRR for smb."
+        tests: [not_null]
+
+  - name: segment_config
+    description: "Segment definitions and baselines: renewal baselines, scenario adjustments, expansion uplift by trend."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: segment
+        description: "Segment key (enterprise, large, medium, smb)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: segment_group
+        description: "Group for behavior (enterprise_large or mid_smb)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [enterprise_large, mid_smb]
+      - name: renewal_baseline_p
+        description: "Base renewal probability (0-1)."
+        tests: [not_null]
+      - name: renewal_upside_add
+        description: "Add for upside scenario (0-1)."
+        tests: [not_null]
+      - name: renewal_downside_sub
+        description: "Subtract for downside scenario (0-1)."
+        tests: [not_null]
+      - name: expansion_growing_uplift_pct
+        description: "Expansion uplift when trend is growing (decimal)."
+        tests: [not_null]
+      - name: expansion_flat_uplift_pct
+        description: "Expansion uplift when trend is flat (decimal)."
+        tests: [not_null]
+      - name: expansion_declining_uplift_pct
+        description: "Expansion uplift when trend is declining (decimal, can be negative)."
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - segment
+
+  - name: stage_probability_config
+    description: "Close (or stage-exit) probabilities per company, segment, and stage for pipeline weighting."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: stage
+        description: "Pipeline stage (prospecting, discovery, proposal, negotiation, closed won, closed lost)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [prospecting, discovery, proposal, negotiation, closed won, closed lost]
+      - name: p_base
+        description: "Base close probability (0-1)."
+        tests: [not_null]
+      - name: p_upside
+        description: "Upside scenario probability (0-1)."
+        tests: [not_null]
+      - name: p_downside
+        description: "Downside scenario probability (0-1)."
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - segment
+            - stage
+
+  - name: slippage_config
+    description: "Slippage (months from expected close to start) by company, segment_group, and stage."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: segment_group
+        description: "enterprise_large or mid_smb."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [enterprise_large, mid_smb]
+      - name: stage
+        description: "Pipeline stage."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [prospecting, discovery, proposal, negotiation, closed won, closed lost]
+      - name: slippage_months
+        description: "Months to add to close date for expected start."
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - segment_group
+            - stage
+
+  - name: health_weights_config
+    description: "Health score input weights by segment_group; weights and default_crm_if_null in 0-1."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: segment_group
+        description: "enterprise_large or mid_smb."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [enterprise_large, mid_smb]
+      - name: weight_crm
+        description: "Weight for CRM health input (0-1); should sum with weight_usage and weight_trend to 1."
+        tests: [not_null]
+      - name: weight_usage
+        description: "Weight for usage score (0-1)."
+        tests: [not_null]
+      - name: weight_trend
+        description: "Weight for trend score (0-1)."
+        tests: [not_null]
+      - name: default_crm_if_null
+        description: "Default normalized CRM value when CRM input is null (0-1)."
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - segment_group

@@ -1,0 +1,100 @@
+# ML dataset models: time-valid features and labels for renewal (and future pipeline/expansion).
+# All grains include company_id for multi-company use.
+
+version: 2
+
+models:
+  - name: ml_features__renewal
+    description: |
+      Features for renewal ML model. Grain: company_id x customer_id x renewal_month.
+      All features as-of as_of_month (renewal_month - 1). No post-renewal leakage.
+    columns:
+      - name: company_id
+        tests: [not_null]
+      - name: customer_id
+        tests: [not_null]
+      - name: renewal_month
+        tests: [not_null]
+      - name: as_of_month
+        tests: [not_null]
+      - name: segment
+      - name: segment_group
+      - name: current_mrr_pre_renewal
+      - name: health_score_1_10
+      - name: usage_per_user_total
+      - name: trailing_3m_avg_usage_per_user_total
+      - name: trailing_3m_slope_bucket
+        tests:
+          - accepted_values:
+              arguments:
+                values: [declining, flat, growing]
+      - name: months_to_renewal
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+            - renewal_month
+
+  - name: ml_labels__renewal
+    description: |
+      Labels for renewal ML. Grain: company_id x customer_id x renewal_month.
+      label_renewed: 1 if revenue in renewal_month or next 2 months; 0 if zero in all three.
+    columns:
+      - name: company_id
+        tests: [not_null]
+      - name: customer_id
+        tests: [not_null]
+      - name: renewal_month
+        tests: [not_null]
+      - name: label_renewed
+        tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+            - renewal_month
+
+  - name: ml_dataset__renewal
+    description: |
+      Joined features + labels for renewal model training. Grain: company_id x customer_id x renewal_month.
+    columns:
+      - name: company_id
+        tests: [not_null]
+      - name: customer_id
+        tests: [not_null]
+      - name: renewal_month
+        tests: [not_null]
+      - name: as_of_month
+        tests: [not_null]
+      - name: label_renewed
+        tests:
+          - accepted_values:
+              arguments:
+                values: [0, 1]
+      - name: trailing_3m_slope_bucket
+        tests:
+          - accepted_values:
+              arguments:
+                values: [declining, flat, growing]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+            - renewal_month
+
+  - name: ml_predictions__renewal
+    description: |
+      Placeholder: reads ML renewal predictions from Parquet (ml/outputs/predictions/renewal_predictions.parquet).
+      TODO: Full integration to blend p_renew_ml with deterministic p_renew in forecast.
+    columns:
+      - name: company_id
+      - name: customer_id
+      - name: renewal_month
+      - name: as_of_month
+      - name: p_renew_ml

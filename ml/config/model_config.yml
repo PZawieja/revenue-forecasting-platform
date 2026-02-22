@@ -1,0 +1,26 @@
+# ML model configuration (portable across companies).
+# Override per company_id in code or via env if needed.
+
+renewal_model:
+  target_column: label_renewed
+  categorical_features:
+    - segment
+    - segment_group
+    - trailing_3m_slope_bucket
+  numeric_features:
+    - current_mrr_pre_renewal
+    - health_score_1_10
+    - usage_per_user_total
+    - trailing_3m_avg_usage_per_user_total
+    - months_to_renewal
+  time_split:
+    train_pct: 0.8   # earliest 80% of renewal_months for train
+  calibration:
+    method: isotonic   # isotonic | platt
+  random_state: 42
+
+# Placeholder: pipeline stage conversion (not implemented).
+# pipeline_model: {}
+
+# Placeholder: expansion uplift (not implemented).
+# expansion_model: {}

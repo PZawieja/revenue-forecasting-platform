@@ -1,0 +1,3 @@
+company_id,segment_group,weight_crm,weight_usage,weight_trend,default_crm_if_null
+default,enterprise_large,0.5,0.35,0.15,0.5
+default,mid_smb,0.3,0.5,0.2,0.5

@@ -1,17 +1,20 @@
-# Seed schema and tests for B2B SaaS subscription dataset.
+# Seed schema and tests; conforms to docs/data_contract.md. Multi-company: all keys composite with company_id.
 version: 2
 
 seeds:
   - name: customers
-    description: "Customer master: segment, region, industry, and optional CRM health score."
+    description: "Customer master. Grain: one row per customer per company. Primary key: company_id, customer_id."
     columns:
+      - name: company_id
+        description: "Tenant identifier (mandatory)."
+        tests: [not_null]
       - name: customer_id
-        description: Unique customer identifier.
-        tests: [not_null, unique]
+        description: "Unique customer identifier within company."
+        tests: [not_null]
       - name: customer_name
-        description: Legal or display name of the customer.
+        description: "Legal or display name."
       - name: segment
-        description: Customer tier (enterprise, large, medium, smb).
+        description: "Customer tier (enterprise, large, medium, smb)."
         tests:
           - accepted_values:
               arguments:
@@ -19,45 +22,57 @@ seeds:
       - name: region
         description: "Geographic region (e.g. DACH, EU, US)."
       - name: industry
-        description: Industry vertical.
+        description: "Industry vertical."
       - name: crm_health_input
-        description: "Optional health score 1-10 from CRM."
+        description: "Optional health score 1-10 from CRM; null if not used."
       - name: created_date
         description: "Date the customer was created (YYYY-MM-DD)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
 
   - name: products
-    description: "Product catalog: family, recurrence, and default term."
+    description: "Product catalog. Grain: one row per product per company. Primary key: company_id, product_id."
     columns:
+      - name: company_id
+        description: "Tenant identifier (mandatory)."
+        tests: [not_null]
       - name: product_id
-        description: Unique product identifier.
-        tests: [not_null, unique]
+        description: "Unique product identifier within company."
+        tests: [not_null]
       - name: product_family
-        description: Product family (A, B, C, D).
-        tests:
-          - accepted_values:
-              arguments:
-                values: [A, B, C, D]
+        description: "Product family or tier (e.g. A, B, C, D or Starter, Growth, Pro, Basic)."
       - name: is_recurring
         description: "Whether the product is recurring (true) or one-time (false)."
       - name: default_term_months
-        description: Default contract term in months.
+        description: "Default contract term in months."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - product_id
 
   - name: subscription_line_items
-    description: "Subscription line items; grain customer_id x product_id x contract_id."
+    description: "Subscription line items. Grain: company_id x customer_id x product_id x contract_id. Primary key: company_id, contract_id, customer_id, product_id. Composite FK (company_id, customer_id) -> customers, (company_id, product_id) -> products."
     columns:
+      - name: company_id
+        description: "Tenant identifier (mandatory)."
+        tests: [not_null]
       - name: contract_id
-        description: Contract identifier.
+        description: "Contract identifier within company."
         tests: [not_null]
       - name: customer_id
-        description: Customer identifier.
+        description: "Customer identifier (within company); composite with company_id references customers."
         tests: [not_null]
       - name: product_id
-        description: Product identifier.
+        description: "Product identifier (within company); composite with company_id references products."
         tests: [not_null]
       - name: contract_start_date
-        description: Contract start date.
+        description: "Contract start date."
       - name: contract_end_date
-        description: Contract end date.
+        description: "Contract end date."
       - name: billing_frequency
         description: "Billing frequency (monthly or annual)."
         tests:
@@ -65,9 +80,9 @@ seeds:
               arguments:
                 values: [monthly, annual]
       - name: quantity
-        description: Quantity (seats or units).
+        description: "Quantity (seats or units)."
       - name: unit_price
-        description: Unit price per billing period.
+        description: "Unit price per billing period."
       - name: discount_pct
         description: "Discount as decimal 0-1."
       - name: status
@@ -76,49 +91,68 @@ seeds:
           - accepted_values:
               arguments:
                 values: [active, non_renewing, cancelled]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - contract_id
+            - customer_id
+            - product_id
 
   - name: pipeline_opportunities_snapshot
-    description: "Pipeline snapshot by opportunity and date; shows stage movement over time."
+    description: "Pipeline snapshot by company, opportunity and date. Grain: company_id x snapshot_date x opportunity_id. Primary key: company_id, snapshot_date, opportunity_id. Composite FK (company_id, customer_id) -> customers when customer_id is not null."
     columns:
+      - name: company_id
+        description: "Tenant identifier (mandatory)."
+        tests: [not_null]
       - name: snapshot_date
         description: "Date of the snapshot (YYYY-MM-DD)."
         tests: [not_null]
       - name: opportunity_id
-        description: Opportunity identifier.
+        description: "Opportunity identifier within company."
         tests: [not_null]
       - name: customer_id
-        description: Customer identifier; null for net-new business.
+        description: "Customer identifier (within company); null for net-new. Composite with company_id references customers."
       - name: segment
-        description: Segment used for the opportunity.
+        description: "Segment used for the opportunity."
         tests:
           - accepted_values:
               arguments:
                 values: [enterprise, large, medium, smb]
       - name: stage
-        description: "Sales stage (e.g. Prospecting, Discovery, Closed Won/Lost)."
+        description: "Sales stage (Prospecting, Discovery, Proposal, Negotiation, Closed Won, Closed Lost)."
         tests:
           - accepted_values:
               arguments:
                 values: [Prospecting, Discovery, Proposal, Negotiation, Closed Won, Closed Lost]
       - name: amount
-        description: Opportunity amount.
+        description: "Opportunity amount."
       - name: expected_close_date
-        description: Expected close date.
+        description: "Expected close date."
       - name: opportunity_type
         description: "Type of opportunity (new_biz, expansion, renewal)."
         tests:
           - accepted_values:
               arguments:
                 values: [new_biz, expansion, renewal]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - snapshot_date
+            - opportunity_id
 
   - name: usage_monthly
-    description: "Monthly usage by customer and feature; grain customer_id x month x feature_key."
+    description: "Monthly usage by company and customer and feature. Grain: company_id x month x customer_id x feature_key. Primary key: company_id, month, customer_id, feature_key. Composite FK (company_id, customer_id) -> customers."
     columns:
+      - name: company_id
+        description: "Tenant identifier (mandatory)."
+        tests: [not_null]
       - name: month
         description: "First day of month (YYYY-MM-01)."
         tests: [not_null]
       - name: customer_id
-        description: Customer identifier.
+        description: "Customer identifier (within company); composite with company_id references customers."
         tests: [not_null]
       - name: feature_key
         description: "Feature identifier (feature_a, feature_b, feature_c)."
@@ -130,3 +164,33 @@ seeds:
         description: "Usage count for the feature in the month."
       - name: active_users
         description: "Active users in the month."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - customer_id
+            - feature_key
+
+  - name: scenario_config
+    description: |
+      Scenario multipliers and adjustments for base/upside/downside. Used by int_renewal_probabilities
+      (renewal_adjustment), fct_forecast_component_expansion (expansion_adjustment), and optionally
+      stage probability logic (stage_probability_adjustment). Replaces hardcoded scenario constants.
+    columns:
+      - name: scenario
+        description: "Scenario name (base, upside, downside)."
+        tests:
+          - not_null
+          - unique
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: renewal_adjustment
+        description: "Additive adjustment to base renewal probability (e.g. upside +0.03, downside -0.05)."
+      - name: expansion_adjustment
+        description: "Additive adjustment to base expansion uplift pct (e.g. upside +0.003, downside -0.005)."
+      - name: stage_probability_adjustment
+        description: "Additive adjustment to base stage close probability (e.g. upside +0.05, downside -0.07)."
+      - name: description
+        description: "Human-readable scenario description."

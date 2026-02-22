@@ -1,0 +1,442 @@
+# Marts: canonical actuals layer. Dimensions and facts with grain tests and relationships.
+version: 2
+
+models:
+  - name: dim_customer
+    description: "Customer dimension. One row per customer per company; source of segment for revenue rollups."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: customer_id
+        description: "Unique customer identifier within company."
+        tests: [not_null]
+      - name: segment
+        description: "Customer tier (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: segment_group
+        description: "enterprise_large or mid_smb."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise_large, mid_smb]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+
+  - name: dim_product
+    description: "Product dimension. One row per product per company."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: product_id
+        description: "Unique product identifier within company."
+        tests: [not_null]
+      - name: product_family
+        description: "Product family (a, b, c, d)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [a, b, c, d]
+      - name: is_recurring
+        description: "Whether the product is recurring."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - product_id
+
+  - name: fct_subscription_line_item_monthly
+    description: "Subscription line items expanded to monthly grain. Grain: company_id x customer_id x product_id x contract_id x month. MRR is monthly (annual / 12 when billing_frequency = annual)."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier (within company); composite with company_id references dim_customer."
+        tests: [not_null]
+      - name: product_id
+        description: "Product identifier (within company); composite with company_id references dim_product."
+        tests: [not_null]
+      - name: contract_id
+        description: "Contract identifier within company."
+        tests: [not_null]
+      - name: month
+        description: "First day of month (date)."
+        tests: [not_null]
+      - name: mrr
+        description: "Monthly recurring revenue for this line in this month."
+      - name: status
+        description: "Contract status (active, non_renewing, cancelled)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [active, non_renewing, cancelled]
+      - name: billing_frequency
+        description: "Billing frequency (monthly, annual)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [monthly, annual]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - contract_id
+            - product_id
+            - customer_id
+            - month
+
+  - name: fct_revenue_actuals_monthly
+    description: "Revenue actuals by company, month, and segment. Grain: company_id x month x segment. Sum of MRR from fct_subscription_line_item_monthly."
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: segment
+        description: "Customer segment (from dim_customer)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: mrr
+        description: "Total MRR for this company/month/segment (sum of line items)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+
+  - name: fct_forecast_component_renewals
+    description: |
+      Forecast component: renewal MRR. Grain: company_id x month x customer_id x scenario.
+      Input: int_renewal_probabilities. expected_renewal_mrr = current_mrr_pre_renewal * p_renew
+      at renewal month. Scenario-aware (base, upside, downside).
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "Renewal month (first day of month)."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests:
+          - not_null
+          - relationships:
+              to: ref("dim_customer")
+              field: customer_id
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: component
+        description: "Forecast component type."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [renewal]
+      - name: forecast_mrr
+        description: "Expected renewal MRR (current_mrr_pre_renewal * p_renew)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - customer_id
+            - scenario
+
+  - name: fct_forecast_component_new_biz
+    description: |
+      Forecast component: new business MRR. Grain: company_id x month x opportunity_id x scenario.
+      Inputs: int_pipeline_weighted_value (expected_value as ARR), int_pipeline_slippage
+      (expected_start_month). forecast_mrr = expected_value / 12. Allocated to month = expected_start_month.
+      Latest snapshot per opportunity. customer_id nullable for net-new.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "Month allocation (expected_start_month)."
+        tests: [not_null]
+      - name: opportunity_id
+        description: "Opportunity identifier."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier; null for net-new."
+        tests:
+          - relationships:
+              to: ref("dim_customer")
+              field: customer_id
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: component
+        description: "Forecast component type."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [new_biz]
+      - name: forecast_mrr
+        description: "Expected new biz MRR (expected_value / 12)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - opportunity_id
+            - scenario
+
+  - name: fct_forecast_component_expansion
+    description: |
+      Forecast component: expansion MRR uplift. Grain: company_id x month x customer_id x scenario. Uplift from segment_config by slope bucket.
+      Inputs: fct_subscription_line_item_monthly (current mrr), int_customer_health_monthly (trend),
+      scenario_config (expansion_adjustment). Base uplift pct by segment_group and slope:
+      enterprise_large growing 1.5%, flat 0.5%, declining 0%; mid_smb growing 1%, flat 0.3%, declining -0.2%.
+      Scenario adjustments from seed (e.g. upside +0.003, downside -0.005); effective uplift floored at -2%.
+      forecast_mrr = current_mrr * (base_uplift_pct + expansion_adjustment).
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests:
+          - not_null
+          - relationships:
+              to: ref("dim_customer")
+              field: customer_id
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: component
+        description: "Forecast component type."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [expansion]
+      - name: forecast_mrr
+        description: "Expansion MRR (current_mrr * uplift_pct)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - customer_id
+            - scenario
+
+  - name: fct_revenue_forecast_monthly
+    description: |
+      Monthly revenue forecast by company, scenario and segment. Grain: company_id x month x scenario x segment. Scenario completeness per company.
+      Uses int_month_spine for full month coverage; base/upside/downside for every company/month/segment.
+      Sums component forecast_mrr (renewals, new_biz, expansion) by segment; joins actuals.
+      forecast_mrr_total = sum of components; component columns: forecast_mrr_renewal,
+      forecast_mrr_new_biz, forecast_mrr_expansion. actual_mrr from fct_revenue_actuals_monthly (0 if no data).
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month (from spine)."
+        tests: [not_null]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: forecast_mrr_renewal
+        description: "Sum of renewal component MRR for this month/scenario/segment; 0 if none."
+      - name: forecast_mrr_new_biz
+        description: "Sum of new_biz component MRR for this month/scenario/segment; 0 if none."
+      - name: forecast_mrr_expansion
+        description: "Sum of expansion component MRR for this month/scenario/segment; 0 if none."
+      - name: forecast_mrr_total
+        description: "Total forecast MRR (renewal + new_biz + expansion)."
+        tests:
+          - forecast_mrr_total_non_negative
+      - name: actual_mrr
+        description: "Actual MRR for this month/segment; 0 if no actuals."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - scenario
+            - segment
+
+  - name: fct_forecast_backtest_metrics
+    description: |
+      Backtest metrics by company, month, scenario, and segment. error = forecast_mrr_total - actual_mrr;
+      abs_error = |error|; ape = abs_error / actual_mrr (null if actual_mrr = 0);
+      wape_6m = trailing 6-month sum(abs_error) / sum(actual_mrr). Numeric fields default to 0 where applied.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: segment
+        description: "Segment."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: forecast_mrr_total
+        description: "Forecast total (0 if null)."
+        tests:
+          - forecast_mrr_total_non_negative
+      - name: actual_mrr
+        description: "Actual MRR (0 if null)."
+      - name: error
+        description: "forecast_mrr_total - actual_mrr."
+      - name: abs_error
+        description: "|error|."
+      - name: ape
+        description: "Absolute percentage error; null when actual_mrr = 0."
+      - name: wape_6m
+        description: "Trailing 6-month WAPE: sum(abs_error)/sum(actual_mrr)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - scenario
+            - segment
+
+  - name: fct_revenue_forecast_monthly_prior_snapshot
+    description: |
+      Placeholder for prior forecast snapshot. Used by int_forecast_drift for drift monitoring.
+      This model returns zero rows until replaced. To enable drift monitoring, replace with a model
+      that reads from a historically snapshot forecast table (dbt snapshot or equivalent) and
+      returns one row per (company_id, month, scenario, segment) for the prior snapshot. Snapshots are not implemented yet.
+    columns:
+      - name: company_id
+      - name: month
+      - name: scenario
+      - name: segment
+      - name: forecast_mrr_total
+
+  - name: fct_revenue_forecast_with_intervals
+    description: |
+      Monthly revenue forecast with backtest-derived prediction intervals. Does not change prior models.
+      Inputs: fct_revenue_forecast_monthly, fct_forecast_backtest_metrics.
+      (1) Historical WAPE per segment+scenario over trailing 6 months from backtest (wape_6m).
+      (2) volatility_factor = trailing_wape (carried forward to future months when no backtest row).
+      (3) forecast_lower = forecast_mrr_total * (1 - volatility_factor), forecast_upper = forecast_mrr_total * (1 + volatility_factor).
+      (4) forecast_lower >= 0 enforced.
+      This is a backtest-derived interval (historical error spread), not a probabilistic or simulation-based interval.
+    columns:
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: forecast_mrr_total
+        description: "Point forecast MRR (from fct_revenue_forecast_monthly)."
+      - name: forecast_lower
+        description: "Lower bound of backtest-derived interval; forecast_mrr_total * (1 - volatility_factor), >= 0."
+      - name: forecast_upper
+        description: "Upper bound of backtest-derived interval; forecast_mrr_total * (1 + volatility_factor)."
+      - name: actual_mrr
+        description: "Actual MRR for this month/segment when available (0 if none)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - month
+            - segment
+            - scenario
+
+  - name: mart_executive_forecast_summary
+    description: |
+      Executive summary mart for presentation. Grain: company_id x month x scenario (aggregated across segments).
+      All metrics default to 0 where null unless noted. Built from fct_revenue_forecast_monthly,
+      fct_revenue_forecast_with_intervals, and int_forecast_confidence. Do not use for dashboards;
+      for reporting/slide use only.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month."
+        tests: [not_null]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: total_forecast_revenue
+        description: "Sum of forecast_mrr_total across all segments (MRR). Default 0 if null."
+      - name: total_actual_revenue
+        description: "Sum of actual_mrr across all segments (MRR). Default 0 if null."
+      - name: forecast_error
+        description: "total_forecast_revenue - total_actual_revenue. Default 0 where null."
+      - name: forecast_error_pct
+        description: "Forecast error as share of actual: (forecast - actual) / actual. 0 when actual = 0 or null."
+      - name: total_renewal_component
+        description: "Sum of renewal component MRR across segments. Default 0 if null."
+      - name: total_new_biz_component
+        description: "Sum of new_biz component MRR across segments. Default 0 if null."
+      - name: total_expansion_component
+        description: "Sum of expansion component MRR across segments. Default 0 if null."
+      - name: revenue_growth_mom
+        description: "Month-over-month revenue growth: (total_actual_revenue - prior month actual) / prior month actual. 0 when prior month actual is 0 or null."
+      - name: revenue_growth_yoy
+        description: "Year-over-year revenue growth: (total_actual_revenue - same month prior year actual) / same month prior year actual. 0 when prior year actual is 0 or null; applicable when 12+ months of history exist."
+      - name: avg_confidence_score
+        description: "Average of int_forecast_confidence.confidence_score_0_100 across segments (0-100). Default 0 if null."
+      - name: forecast_lower
+        description: "Sum of segment-level forecast_lower (backtest-derived interval lower bound). Default 0 if null."
+      - name: forecast_upper
+        description: "Sum of segment-level forecast_upper (backtest-derived interval upper bound). Default 0 if null."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - scenario

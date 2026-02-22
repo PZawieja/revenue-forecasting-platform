@@ -1,0 +1,5 @@
+company_id,segment,segment_group,renewal_baseline_p,renewal_upside_add,renewal_downside_sub,expansion_growing_uplift_pct,expansion_flat_uplift_pct,expansion_declining_uplift_pct
+default,enterprise,enterprise_large,0.92,0.03,0.05,0.015,0.005,0
+default,large,enterprise_large,0.88,0.03,0.05,0.015,0.005,0
+default,medium,mid_smb,0.82,0.03,0.05,0.01,0.003,-0.002
+default,smb,mid_smb,0.75,0.03,0.05,0.01,0.003,-0.002

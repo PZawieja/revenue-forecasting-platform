@@ -7,4 +7,12 @@ __pycache__/
 .DS_Store
 .idea/
 .vscode/
-dbt/profiles/.user.yml
+
+# ML artifacts and outputs (directories kept via .gitkeep)
+ml/artifacts/*
+!ml/artifacts/.gitkeep
+ml/outputs/*
+!ml/outputs/.gitkeep
+*.parquet
+*.pkl
+*.joblib

@@ -1,0 +1,25 @@
+company_id,segment,stage,p_base,p_upside,p_downside
+default,enterprise,prospecting,0.06,0.08,0.04
+default,enterprise,discovery,0.18,0.21,0.14
+default,enterprise,proposal,0.40,0.44,0.35
+default,enterprise,negotiation,0.72,0.76,0.66
+default,enterprise,closed won,1.00,1.00,1.00
+default,enterprise,closed lost,0.00,0.00,0.00
+default,large,prospecting,0.06,0.08,0.04
+default,large,discovery,0.18,0.21,0.14
+default,large,proposal,0.40,0.44,0.35
+default,large,negotiation,0.70,0.74,0.64
+default,large,closed won,1.00,1.00,1.00
+default,large,closed lost,0.00,0.00,0.00
+default,medium,prospecting,0.05,0.07,0.03
+default,medium,discovery,0.15,0.18,0.12
+default,medium,proposal,0.35,0.39,0.30
+default,medium,negotiation,0.62,0.66,0.56
+default,medium,closed won,1.00,1.00,1.00
+default,medium,closed lost,0.00,0.00,0.00
+default,smb,prospecting,0.05,0.07,0.03
+default,smb,discovery,0.14,0.17,0.11
+default,smb,proposal,0.32,0.36,0.28
+default,smb,negotiation,0.58,0.62,0.52
+default,smb,closed won,1.00,1.00,1.00
+default,smb,closed lost,0.00,0.00,0.00

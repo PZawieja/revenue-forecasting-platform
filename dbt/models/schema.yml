@@ -1,0 +1,10 @@
+version: 2
+
+models:
+  - name: sanity
+    description: "Minimal sanity-check model returning the constant 1 and current date."
+    columns:
+      - name: one
+        description: "Constant value 1."
+      - name: today
+        description: "Current date at run time."

@@ -1,5 +1,3 @@
-# Default profile for repo-local runs (DBT_PROFILES_DIR=dbt/profiles).
-# DuckDB path: repo_root/warehouse/revenue_forecasting.duckdb (path is relative to dbt/).
 revenue_forecasting_platform:
   target: dev
   outputs:

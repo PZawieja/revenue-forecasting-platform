@@ -1,0 +1,13 @@
+company_id,segment_group,stage,slippage_months
+default,enterprise_large,prospecting,3
+default,enterprise_large,discovery,2
+default,enterprise_large,proposal,1
+default,enterprise_large,negotiation,1
+default,enterprise_large,closed won,0
+default,enterprise_large,closed lost,0
+default,mid_smb,prospecting,2
+default,mid_smb,discovery,1
+default,mid_smb,proposal,1
+default,mid_smb,negotiation,0
+default,mid_smb,closed won,0
+default,mid_smb,closed lost,0

@@ -1,0 +1,364 @@
+# Intermediate layer: shared building blocks for marts and forecasting.
+version: 2
+
+models:
+  - name: int_month_spine
+    description: |
+      Monthly date spine for forecasting and backtesting. Covers the range of months
+      present in subscription line items (contract start/end) and pipeline snapshots,
+      extended 6 months forward from the latest of those dates. Single column output.
+    columns:
+      - name: month
+        description: "First day of month (date). One row per month in the spine range."
+        tests:
+          - not_null
+          - unique
+
+  - name: int_customer_health_monthly
+    description: |
+      Monthly customer health score (1-10). Grain: company_id x customer_id x month.
+      Weights from health_weights_config (company_id, segment_group): weight_crm, weight_usage, weight_trend, default_crm_if_null.
+      Logic: (1) Aggregate usage by company/customer/month; (2) trailing 3m avg and slope bucket;
+      (3) Normalize crm (default_crm_if_null when null), usage vs month p90, trend (0.2/0.5/0.8);
+      (4) health_raw = weighted sum from config; (5) health_score_1_10 = 1 + floor(9 * health_raw).
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month (date)."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests: [not_null]
+      - name: segment
+        description: "Customer segment (enterprise, large, medium, smb)."
+      - name: segment_group
+        description: "enterprise_large or mid_smb."
+      - name: crm_health_input
+        description: "Raw CRM health 1-10; null allowed in input, normalized to 0.5 in score."
+      - name: usage_total
+        description: "Sum of usage_count across features for this customer/month."
+      - name: active_users_total
+        description: "Sum of active_users across features for this customer/month."
+      - name: usage_per_user_total
+        description: "usage_total / nullif(active_users_total, 0)."
+      - name: trailing_3m_avg_usage_per_user_total
+        description: "Average of usage_per_user_total over current and two preceding months."
+      - name: trailing_3m_slope_bucket
+        description: "Trend: declining (<95% of 2mo ago), flat, growing (>105% of 2mo ago)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [declining, flat, growing]
+      - name: health_raw
+        description: "Weighted 0-1 score before scaling to 1-10."
+      - name: health_score_1_10
+        description: "Final health score: 1 + floor(9 * health_raw)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+            - month
+
+  - name: int_customer_cohorts
+    description: |
+      Customer cohorts by first contract start. Grain: one row per (company_id, customer_id).
+      cohort_month = min(contract_start_month) across all contracts for that customer.
+      Used for cohort-based churn and retention (int_cohort_churn_rates). Not integrated into forecast.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests: [not_null]
+      - name: cohort_month
+        description: "First day of the month of the customer's earliest contract start (cohort definition)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+
+  - name: int_cohort_churn_rates
+    description: |
+      Cohort-based churn and revenue retention by tenure. Grain: company_id x cohort_month x tenure_month x segment.
+      tenure_month = months since cohort_month (0 = cohort month, 1 = first full month after, etc.).
+      Logo = customer still has at least one subscription line with MRR in that month.
+      survival_rate_logo = (count of cohort customers still active in that tenure month) / (cohort size). 0–1; 1 = no logo churn.
+      survival_rate_revenue = (sum of cohort MRR in that tenure month) / (sum of cohort MRR in tenure 0). Null when revenue_0 = 0.
+      Not integrated into forecast.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: cohort_month
+        description: "First day of cohort month (earliest contract start month for the cohort)."
+        tests: [not_null]
+      - name: tenure_month
+        description: "Months since cohort_month (0 = cohort month)."
+        tests: [not_null]
+      - name: segment
+        description: "Customer segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: survival_rate_logo
+        description: "Share of cohort still active (logo retention). Active = has MRR in that tenure month. 0–1; null if cohort_size = 0."
+      - name: survival_rate_revenue
+        description: "Cohort revenue in tenure month / cohort revenue in tenure 0. Null when revenue at tenure 0 = 0."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - cohort_month
+            - tenure_month
+            - segment
+
+  - name: int_renewal_probabilities
+    description: |
+      Estimated renewal probability per customer per renewal_month per scenario.
+      Grain: company_id x customer_id x renewal_month x scenario (base, upside, downside).
+      segment_config (company_id, segment): renewal_baseline_p, renewal_upside_add, renewal_downside_sub; scenario values from config.
+      Inputs: fct_subscription_line_item_monthly, int_customer_health_monthly, dim_customer.
+      current_mrr_pre_renewal = sum(mrr) in month immediately before renewal. Base + health/trend adjustments, clamped [0.05, 0.99].
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "Renewal month (first day of month)."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier."
+        tests:
+          - not_null
+          - relationships:
+              to: ref("dim_customer")
+              field: customer_id
+      - name: segment
+        description: "Customer segment from dim_customer."
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: p_renew
+        description: "Renewal probability for this scenario, clamped 0.05-0.99."
+        tests:
+          - p_renew_between_0_and_1
+      - name: current_mrr_pre_renewal
+        description: "Sum of MRR in the month immediately prior to renewal_month."
+      - name: health_score_1_10
+        description: "Health score from latest month before renewal (driver)."
+      - name: slope_bucket
+        description: "Usage trend bucket from latest month before renewal (driver)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [declining, flat, growing]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+            - month
+            - scenario
+
+  - name: int_forecast_confidence
+    description: |
+      Forecast confidence score by company x month x segment x scenario. Does not modify forecast totals.
+      Inputs: fct_revenue_forecast_monthly (totals and new_biz share), int_customer_health_monthly,
+      fct_forecast_component_renewals and fct_forecast_component_expansion (customer-level for health and concentration).
+      Risk indicators and weighted confidence_score_0_100; output includes risk_breakdown columns.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "First day of month (forecast month)."
+        tests: [not_null]
+      - name: segment
+        description: "Customer segment (enterprise, large, medium, smb)."
+        tests: [not_null]
+      - name: scenario
+        description: "Scenario (base, upside, downside)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: confidence_score_0_100
+        description: "Confidence score 0-100; higher = more confidence. 100 * (1 - weighted risk)."
+      - name: pct_revenue_low_health
+        description: "Risk breakdown: share of forecast from customers with health_score_1_10 <= 4 (0-1)."
+      - name: pct_forecast_from_pipeline
+        description: "Risk breakdown: share of forecast from new_biz component (0-1)."
+      - name: top5_concentration_pct
+        description: "Risk breakdown: top 5 customers' share of customer-sourced forecast (renewal+expansion) (0-1)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+            - scenario
+
+  - name: int_forecast_drift
+    description: |
+      Forecast drift monitoring. Grain: company_id x month x scenario x segment.
+      Compares current forecast (fct_revenue_forecast_monthly) to prior snapshot for the same company/month.
+      drift = forecast_current - forecast_previous; drift_pct = drift / forecast_previous (null when previous = 0).
+      drift_flag = true when abs(drift_pct) > 10%. Prior snapshot from fct_revenue_forecast_monthly_prior_snapshot (placeholder until implemented).
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: month
+        description: "Forecast month (first day of month)."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests: [not_null]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: forecast_current
+        description: "Current run forecast MRR for this month/scenario/segment."
+      - name: forecast_previous
+        description: "Prior snapshot forecast MRR for the same month/scenario/segment."
+      - name: drift
+        description: "Absolute drift: forecast_current - forecast_previous."
+      - name: drift_pct
+        description: "Percentage drift: drift / forecast_previous. Null when forecast_previous = 0."
+      - name: drift_flag
+        description: "True when abs(drift_pct) > 10% (significant drift)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - month
+            - segment
+            - scenario
+
+  - name: int_stage_probabilities
+    description: |
+      Stage close probabilities from stage_probability_config (company_id, segment, stage).
+      Columns: company_id, segment, stage, p_base, p_upside, p_downside. Used to weight pipeline value.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+      - name: stage
+        description: "Pipeline stage (lowercase)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [prospecting, discovery, proposal, negotiation, closed won, closed lost]
+      - name: p_base
+        description: "Base close probability for this segment/stage."
+      - name: p_upside
+        description: "Upside scenario close probability."
+      - name: p_downside
+        description: "Downside scenario close probability."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - segment
+            - stage
+
+  - name: int_pipeline_weighted_value
+    description: |
+      Pipeline snapshot with stage-based close probability and expected value per scenario.
+      Grain: company_id x snapshot_date x opportunity_id x scenario.
+      Inputs: stg_pipeline_opportunities_snapshot, int_stage_probabilities (stage_probability_config).
+      p_close from int_stage_probabilities by (company_id, segment, stage) and scenario; expected_value = amount * p_close.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: snapshot_date
+        description: "Snapshot date."
+        tests: [not_null]
+      - name: opportunity_id
+        description: "Opportunity identifier."
+        tests: [not_null]
+      - name: scenario
+        description: "base, upside, or downside."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [base, upside, downside]
+      - name: p_close
+        description: "Close probability for this segment/stage/scenario."
+      - name: expected_value
+        description: "amount * p_close."
+      - name: stage
+        description: "Pipeline stage."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [prospecting, discovery, proposal, negotiation, closed won, closed lost]
+      - name: segment
+        description: "Segment."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise, large, medium, smb]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - snapshot_date
+            - opportunity_id
+            - scenario
+
+  - name: int_pipeline_slippage
+    description: |
+      Close-date slippage from slippage_config (company_id, segment_group, stage).
+      expected_start_month = expected_close_month + slippage_months (when deal might actually start if slipped).
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: snapshot_date
+        description: "Snapshot date."
+        tests: [not_null]
+      - name: opportunity_id
+        description: "Opportunity identifier."
+        tests: [not_null]
+      - name: segment_group
+        description: "enterprise_large or mid_smb."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise_large, mid_smb]
+      - name: stage
+        description: "Pipeline stage."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [prospecting, discovery, proposal, negotiation, closed won, closed lost]
+      - name: slippage_months
+        description: "Estimated months of delay by stage/segment."
+      - name: expected_start_month
+        description: "expected_close_month + slippage_months (date)."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - snapshot_date
+            - opportunity_id

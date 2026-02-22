@@ -1,3 +1,1 @@
-select
-    1 as one,
-    current_date as today
+SELECT 1 AS one, current_date AS today

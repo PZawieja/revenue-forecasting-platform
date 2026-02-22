@@ -1,0 +1,2 @@
+company_id,company_name,base_currency,forecast_months_forward,new_biz_start_lag_months_enterprise,new_biz_start_lag_months_large,new_biz_start_lag_months_medium,new_biz_start_lag_months_smb
+default,Default Company,USD,12,2,1,1,0

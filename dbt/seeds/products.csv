@@ -1,12 +1,14 @@
-product_id,product_family,is_recurring,default_term_months
-prod_a1,A,true,12
-prod_a2,A,true,24
-prod_a3,A,false,1
-prod_b1,B,true,12
-prod_b2,B,true,36
-prod_b3,B,true,1
-prod_c1,C,true,12
-prod_c2,C,true,24
-prod_d1,D,false,1
-prod_d2,D,true,12
-prod_d3,D,true,36
+company_id,product_id,product_family,is_recurring,default_term_months
+co_shiftmove_like,p_a1,A,true,12
+co_shiftmove_like,p_a2,A,true,24
+co_shiftmove_like,p_b1,B,true,12
+co_shiftmove_like,p_b2,B,true,36
+co_shiftmove_like,p_c1,C,true,12
+co_shiftmove_like,p_c2,C,true,24
+co_shiftmove_like,p_d1,D,true,1
+co_shiftmove_like,p_d2,D,true,12
+co_generic_saas,p_a1,Starter,true,12
+co_generic_saas,p_b1,Growth,true,12
+co_generic_saas,p_c1,Pro,true,12
+co_generic_saas,p_d1,Basic,true,1
+co_generic_saas,p_d2,Basic Annual,true,12
