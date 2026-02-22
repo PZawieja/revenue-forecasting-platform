@@ -6,6 +6,9 @@ version: 2
 exposures:
   - name: Executive Forecast Summary
     type: dashboard
+    owner:
+      name: Data team
+      email: data@company.com
     description: Executive view of revenue forecast, intervals, and ARR waterfall.
     depends_on:
       - ref('mart_executive_forecast_summary')
@@ -14,6 +17,9 @@ exposures:
 
   - name: ARR Waterfall
     type: dashboard
+    owner:
+      name: Data team
+      email: data@company.com
     description: Monthly ARR waterfall and customer-level bridge.
     depends_on:
       - ref('mart_arr_waterfall_monthly')
@@ -21,6 +27,9 @@ exposures:
 
   - name: Churn Risk Watchlist
     type: dashboard
+    owner:
+      name: Data team
+      email: data@company.com
     description: At-risk customers and renewal probabilities for action.
     depends_on:
       - ref('mart_churn_risk_watchlist')

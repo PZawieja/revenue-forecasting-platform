@@ -1,6 +1,8 @@
 dbt-duckdb
 duckdb
 pandas
+numpy
 pyarrow
 scikit-learn
+xgboost
 pyyaml

@@ -51,7 +51,7 @@ at_risk_health as (
         h.slope_bucket
     from health_monthly h
     inner join company_customers c on c.company_id = h.company_id and c.customer_id = h.customer_id
-    where h.health_score_1_10 <= 4 or h.trailing_3m_slope_bucket = 'declining'
+    where h.health_score_1_10 <= 4 or h.slope_bucket = 'declining'
 ),
 
 -- Current ARR by customer and month (12 * MRR)

@@ -14,7 +14,7 @@ p90_by_month as (
     select
         company_id,
         month,
-        quantile_cont(0.9) within group (order by usage_per_user_total) as p90_usage_per_user_total
+        approx_quantile(usage_per_user_total, 0.9) as p90_usage_per_user_total
     from usage_agg
     group by company_id, month
 ),

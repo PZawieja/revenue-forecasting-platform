@@ -50,7 +50,7 @@ next_3m_forecast as (
 pipeline_coverage as (
     select
         company_id,
-        report_month as month,
+        month,
         scenario,
         segment,
         sum_new_biz_3m / nullif(sum_total_3m, 0) as pipeline_coverage_ratio
@@ -95,12 +95,12 @@ arr_up_for_renewal as (
 renewal_coverage as (
     select
         n.company_id,
-        n.report_month as month,
+        n.month,
         n.scenario,
         n.segment,
         coalesce(r.arr_up_for_renewal_3m, 0) / nullif(4.0 * n.sum_total_3m, 0) as renewal_coverage_ratio
     from next_3m_forecast n
-    left join arr_up_for_renewal r on r.company_id = n.company_id and r.month = n.report_month and r.segment = n.segment
+    left join arr_up_for_renewal r on r.company_id = n.company_id and r.month = n.month and r.segment = n.segment
 ),
 
 -- Concentration: top 5 customers ARR share per (company_id, month, segment); scenario-agnostic

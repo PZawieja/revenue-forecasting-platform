@@ -163,9 +163,8 @@ models:
     description: |
       Estimated renewal probability per customer per renewal_month per scenario.
       Grain: company_id x customer_id x renewal_month x scenario (base, upside, downside).
-      segment_config (company_id, segment): renewal_baseline_p, renewal_upside_add, renewal_downside_sub; scenario values from config.
-      Inputs: fct_subscription_line_item_monthly, int_customer_health_monthly, dim_customer.
-      current_mrr_pre_renewal = sum(mrr) in month immediately before renewal. Base + health/trend adjustments, clamped [0.05, 0.99].
+      Base probability: ML (p_renew_ml from stg_ml_renewal_predictions) when available, else rules-based. Scenario adjustments from segment_config applied on top (clamped 0.05-0.99).
+      p_renew_source indicates origin: ml_logistic, ml_xgboost, or rules.
     columns:
       - name: company_id
         description: "Tenant identifier."
@@ -192,6 +191,12 @@ models:
         description: "Renewal probability for this scenario, clamped 0.05-0.99."
         tests:
           - p_renew_between_0_and_1
+      - name: p_renew_source
+        description: "Origin of base probability: ml_logistic, ml_xgboost, or rules."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [ml_logistic, ml_xgboost, rules]
       - name: current_mrr_pre_renewal
         description: "Sum of MRR in the month immediately prior to renewal_month."
       - name: health_score_1_10

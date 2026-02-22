@@ -63,6 +63,69 @@ Profile is in `dbt/profiles/profiles.yml` (DuckDB at `../warehouse/revenue_forec
 
 ---
 
+## Run types
+
+### Baseline run (rules only)
+
+Forecast using **rule-based** renewal and pipeline stage probabilities only (no ML). Runs dbt so forecasts use config-driven probabilities.
+
+```bash
+./scripts/setup.sh
+./scripts/dbt_seed.sh
+./scripts/dbt_run.sh
+```
+
+### ML calibrated run (preferred model selection)
+
+Train renewal and pipeline models, **publish the preferred model per dataset** to DuckDB (`ml_model_selection`), then rerun dbt. The forecast uses the **preferred ML model** (logistic or xgboost) per dataset, with rules as fallback when ML is missing.
+
+```bash
+./scripts/setup.sh
+./scripts/run_all.sh
+```
+
+`run_all.sh` runs dbt (seed + run), **publish_model_selection** (reads `forecasting/config/model_selection.yml` → writes `ml_model_selection`), trains both models, then reruns dbt so staging filters to the preferred model and the forecast consumes it.
+
+Single-domain ML:
+
+- `./scripts/ml_train_renewals.sh` — dbt, train renewals, rerun dbt.
+- `./scripts/ml_train_pipeline.sh` — dbt, train pipeline, rerun dbt.
+
+**Switching preferred model:** Edit `forecasting/config/model_selection.yml` (set `preferred_model: logistic` or `preferred_model: xgboost` per dataset), then run `./scripts/publish_model_selection.sh` and rerun dbt (e.g. `./scripts/dbt_run.sh`). No retraining needed; dbt will use the newly preferred model from existing predictions.
+
+All scripts ensure `.venv` exists (prompt to run `./scripts/setup.sh` if not), create `./warehouse/` if needed, and run dbt with `DBT_PROFILES_DIR=./profiles` from `dbt/`.
+
+### Backtesting ML
+
+Walk-forward backtests for renewal and pipeline models (no dbt rerun after). Results go to `ml_*_backtest_results` and `ml_*_backtest_metrics` in DuckDB. After backtests, run calibration reports to populate `ml_calibration_bins`, `ml_threshold_metrics`, and `ml_cost_curves` (exposed as marts for exploration).
+
+```bash
+./scripts/ml_backtest_renewals.sh
+./scripts/ml_backtest_pipeline.sh
+./scripts/ml_calibration_reports.sh
+```
+
+`run_all.sh` also runs backtests, calibration reports, **champion/challenger selection**, and a final dbt run so forecasts use the chosen model.
+
+### Champion/Challenger ML selection
+
+Preferred model per dataset (renewals, pipeline) can be chosen automatically from backtest performance. The script `forecasting/src/select_champion_model.py` reads `ml_renewal_backtest_metrics` and `ml_pipeline_backtest_metrics`, uses the **latest 6 cutoff months** per model, and computes a composite score from **mean and standard deviation of logloss and Brier** (lower is better). The model with the **lowest score** becomes the champion. A **stability guardrail** applies: if the best model leads by less than 1% on that score, **logistic** is chosen so the simpler, more stable model is preferred when the two are close. The chosen model is written to **ml_model_selection** (with `selection_reason`, `score_logistic`, `score_xgboost`) so dbt staging and forecasts use it as the source of truth. You can still override via `publish_model_selection` (YAML) if you want a fixed choice instead of data-driven selection.
+
+---
+
+## ML model quality
+
+The platform reports portfolio-grade calibration and business-impact metrics for renewal and pipeline probability models (from backtest outputs):
+
+- **Brier score** — Mean squared error between predicted probabilities and outcomes (0 = perfect, 0.25 = no better than 50/50). Reported in `ml_renewal_backtest_metrics` and `ml_pipeline_backtest_metrics` per cutoff and model; lower is better.
+- **Calibration bins** — Predictions are grouped into 10 probability bins (e.g. 0–0.1, 0.1–0.2, …). For each bin we store the average predicted probability (`p_pred_mean`) and the empirical success rate (`y_true_rate`). A well-calibrated model has `p_pred_mean ≈ y_true_rate` in every bin; large gaps indicate over- or under-confidence. Exposed in **mart_ml_calibration_bins**.
+- **Threshold metrics** — For thresholds 0.1–0.9 we compute precision, recall, FPR, FNR, and confusion counts (tp, fp, tn, fn) so you can tune decision thresholds for operations (e.g. who gets CSM outreach). Exposed in **mart_ml_threshold_metrics**.
+- **Threshold cost curves** — For each threshold we apply dataset-specific cost assumptions (e.g. renewals: cost of a missed at-risk renewal vs unnecessary outreach; pipeline: cost of forecast over- vs under-statement) and write **expected_cost = fn×fn_cost + fp×fp_cost**. Exposed in **mart_ml_cost_curves** so you can pick the threshold that minimizes expected cost.
+
+Run `./scripts/ml_calibration_reports.sh` after backtests to refresh these tables; then use the marts in dbt docs or a BI tool.
+
+---
+
 ## How to explore the outputs
 
 After `dbt run`, the main **marts** to explore (e.g. in a BI tool or `dbt docs serve`) and what each answers:
@@ -113,7 +176,25 @@ Exposures in `dbt/models/exposures.yml` (Executive Forecast Summary, ARR Waterfa
 
 ## CI
 
-A GitHub Actions workflow runs on every **push to `main`** and on every **pull request** targeting `main`. It uses `ubuntu-latest` and Python 3.11, installs dependencies from `requirements.txt`, creates the `warehouse/` directory (DuckDB is created at `warehouse/revenue_forecasting.duckdb` at runtime), and runs dbt from the `dbt/` directory with `DBT_PROFILES_DIR=./profiles`. Steps: `dbt --version`, `dbt debug`, `dbt seed --full-refresh`, `dbt run`, `dbt test`. No secrets are required. Add a status badge in your README from your repository’s Actions tab if desired.
+A GitHub Actions workflow (`.github/workflows/dbt_ci.yml`) runs on every **push to `main`** and on every **pull request** targeting `main`. It uses `ubuntu-latest` and Python 3.11, installs dependencies from `requirements.txt`, creates the `warehouse/` directory (DuckDB is created at `warehouse/revenue_forecasting.duckdb` at runtime), and runs dbt from the `dbt/` directory with `DBT_PROFILES_DIR=./profiles`. **Job 1 (dbt):** `dbt --version`, `dbt debug`, `dbt seed --full-refresh`, `dbt run`, `dbt test`. No secrets or external services; all paths are relative and repo-local.
+
+### CI ML checks
+
+An optional second job **ml_ci** runs after the dbt job succeeds. It re-runs dbt (seed + run) to build ML feature tables, then runs the full ML pipeline from the repo root:
+
+1. **Publish model selection** — Writes `ml_model_selection` from `forecasting/config/model_selection.yml`.
+2. **Train both datasets** — `train_renewals` and `train_pipeline` with `--model both`.
+3. **Backtests** — `backtest_renewals` and `backtest_pipeline` with `--model both`.
+4. **Calibration reports** — Builds `ml_calibration_bins`, `ml_threshold_metrics`, `ml_cost_curves`.
+5. **ML quality gates** — `ci_quality_gates` checks backtest metrics against thresholds; see below.
+6. **dbt run + dbt test** — So marts that read ML tables compile and tests pass.
+
+**Quality gates (illustrative, tunable):** The script `forecasting/src/ci_quality_gates.py` reads `ml_renewal_backtest_metrics` and `ml_pipeline_backtest_metrics`, takes the latest cutoff per model, and enforces:
+
+- **Renewals:** Brier ≤ 0.25, logloss ≤ 0.75.
+- **Pipeline:** Brier ≤ 0.30, logloss ≤ 0.80.
+
+If **both** logistic and xgboost exceed the thresholds for a given dataset, the job fails (exit 1). If only one model fails, the job passes but prints a warning so you can tune. These defaults are mild for synthetic/CI; for real data, relax or tighten thresholds via CLI args (`--renewals-brier-max`, `--pipeline-logloss-max`, etc.) or change the script defaults.
 
 ---
 

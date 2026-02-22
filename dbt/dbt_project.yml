@@ -5,12 +5,17 @@ config-version: 2
 profile: "revenue_forecasting_platform"
 
 model-paths: ["models"]
-seed-paths: ["seeds", "seeds/config"]
+seed-paths: ["seeds"]
 macro-paths: ["macros"]
 test-paths: ["tests"]
 
 target-path: "target"
 clean-targets: ["target", "dbt_packages"]
+
+# Use INSERT from agate instead of COPY FROM CSV to avoid DuckDB CSV sniffer column mismatch with multi-company seeds (company_id in first column).
+seeds:
+  revenue_forecasting_platform:
+    +fast: false
 
 models:
   revenue_forecasting_platform:

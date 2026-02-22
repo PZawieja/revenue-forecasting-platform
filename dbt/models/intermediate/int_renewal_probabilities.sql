@@ -89,7 +89,8 @@ segment_baseline as (
     inner join {{ ref('segment_config') }} sc on sc.company_id = b.company_id and sc.segment = b.segment
 ),
 
-with_adjustments as (
+-- Deterministic rules-based renewal probability (clamped 0.05..0.99)
+p_renew_rules as (
     select
         company_id,
         customer_id,
@@ -116,19 +117,71 @@ with_adjustments as (
                 when 'declining' then -0.04
                 else 0
             end
-        )) as p_renew_base
+        )) as p_renew_rules
     from segment_baseline
 ),
 
+-- ML predictions: preferred model per dataset (stg_ml_renewal_predictions has p_renew_ml, p_renew_source)
+with_ml_base as (
+    select
+        r.company_id,
+        r.customer_id,
+        r.renewal_month,
+        r.segment,
+        r.health_score_1_10,
+        r.slope_bucket,
+        r.current_mrr_pre_renewal,
+        r.renewal_upside_add,
+        r.renewal_downside_sub,
+        coalesce(ml.p_renew_ml, r.p_renew_rules) as p_renew_base,
+        coalesce(ml.p_renew_source, 'rules') as p_renew_source
+    from p_renew_rules r
+    left join {{ ref('stg_ml_renewal_predictions') }} ml
+        on ml.company_id = r.company_id
+        and ml.customer_id = r.customer_id
+        and ml.renewal_month = r.renewal_month
+),
+
+-- Apply scenario adjustments from scenario_config on top of base (clamp 0.05..0.99)
 scenarios as (
-    select company_id, customer_id, renewal_month as month, segment, 'base' as scenario, p_renew_base as p_renew, current_mrr_pre_renewal, health_score_1_10, slope_bucket
-    from with_adjustments
+    select
+        company_id,
+        customer_id,
+        renewal_month as month,
+        segment,
+        'base' as scenario,
+        least(0.99, greatest(0.05, p_renew_base)) as p_renew,
+        p_renew_source,
+        current_mrr_pre_renewal,
+        health_score_1_10,
+        slope_bucket
+    from with_ml_base
     union all
-    select company_id, customer_id, renewal_month, segment, 'upside', least(0.99, p_renew_base + renewal_upside_add), current_mrr_pre_renewal, health_score_1_10, slope_bucket
-    from with_adjustments
+    select
+        company_id,
+        customer_id,
+        renewal_month,
+        segment,
+        'upside',
+        least(0.99, greatest(0.05, p_renew_base + renewal_upside_add)),
+        p_renew_source,
+        current_mrr_pre_renewal,
+        health_score_1_10,
+        slope_bucket
+    from with_ml_base
     union all
-    select company_id, customer_id, renewal_month, segment, 'downside', greatest(0.05, p_renew_base - renewal_downside_sub), current_mrr_pre_renewal, health_score_1_10, slope_bucket
-    from with_adjustments
+    select
+        company_id,
+        customer_id,
+        renewal_month,
+        segment,
+        'downside',
+        greatest(0.05, least(0.99, p_renew_base - renewal_downside_sub)),
+        p_renew_source,
+        current_mrr_pre_renewal,
+        health_score_1_10,
+        slope_bucket
+    from with_ml_base
 )
 
 select * from scenarios

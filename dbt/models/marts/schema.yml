@@ -928,3 +928,180 @@ models:
             - month
             - segment
             - scenario
+
+  - name: ml_features_renewals
+    tags: [marts, forecasting]
+    description: |
+      ML feature table for renewal model. Grain: company_id x customer_id x renewal_month.
+      Stable training data: features as-of month prior to renewal; label renewed_flag from actuals (1 if MRR > 0 in month after renewal_month, else 0).
+      Materialized as table for fast Python reads.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: customer_id
+        description: "Customer identifier within company."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+      - name: segment_group
+        description: "enterprise_large or mid_smb."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [enterprise_large, mid_smb]
+      - name: renewal_month
+        description: "First day of month when contract ends (renewal date)."
+        tests: [not_null]
+      - name: current_mrr_pre_renewal
+        description: "MRR in the month prior to renewal_month."
+      - name: months_to_renewal
+        description: "Months from latest month in data to renewal_month."
+      - name: health_score_1_10
+        description: "Health score 1-10 as-of month prior to renewal (from int_customer_health_monthly)."
+      - name: slope_bucket
+        description: "Usage trend bucket: declining, flat, or growing."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [declining, flat, growing]
+      - name: trailing_3m_usage_per_user
+        description: "Trailing 3-month avg usage per user (from health model) as-of prior month."
+      - name: tenure_months
+        description: "Months from cohort_month to renewal_month."
+      - name: renewed_flag
+        description: "Label: 1 if customer has >0 MRR in month after renewal_month, else 0."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - customer_id
+            - renewal_month
+
+  - name: ml_features_pipeline
+    tags: [marts, forecasting]
+    description: |
+      ML feature table for pipeline model. Grain: company_id x opportunity_id x snapshot_month.
+      closed_won_flag = 1 if opportunity ever reaches 'closed won' in a later snapshot; 0 if 'closed lost' or still open (simplification: open = 0).
+      Materialized as table for fast Python reads.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+        tests: [not_null]
+      - name: opportunity_id
+        description: "Opportunity identifier within company."
+        tests: [not_null]
+      - name: snapshot_month
+        description: "First day of snapshot month."
+        tests: [not_null]
+      - name: segment
+        description: "Segment (enterprise, large, medium, smb)."
+      - name: stage
+        description: "Pipeline stage (lowercase from stg)."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [prospecting, discovery, proposal, negotiation, closed won, closed lost]
+      - name: amount
+        description: "Opportunity amount."
+      - name: expected_close_month
+        description: "Expected close date truncated to month."
+      - name: opportunity_type
+        description: "new_biz, expansion, or renewal."
+      - name: deal_age_months
+        description: "Months from first snapshot (first seen) to this snapshot_month."
+      - name: closed_won_flag
+        description: "Label: 1 if opportunity ever reaches 'closed won' in a later snapshot, else 0."
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - company_id
+            - opportunity_id
+            - snapshot_month
+
+  - name: mart_ml_calibration_bins
+    tags: [marts, forecasting, ml]
+    description: |
+      Calibration bins by dataset, model, and cutoff month (from calibration_reports).
+      Ten probability bins: p_pred_mean (avg predicted prob in bin), y_true_rate (empirical success rate), count.
+      Well-calibrated models have p_pred_mean ≈ y_true_rate per bin.
+    columns:
+      - name: dataset
+        description: "renewals or pipeline."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [renewals, pipeline]
+      - name: model_name
+        description: "logistic or xgboost."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [logistic, xgboost]
+      - name: cutoff_month
+        description: "Backtest cutoff month (first day of month)."
+      - name: bin_id
+        description: "Bin 1..10 (low to high predicted probability)."
+      - name: p_pred_mean
+        description: "Mean predicted probability in this bin."
+      - name: y_true_rate
+        description: "Empirical success rate in this bin."
+      - name: count
+        description: "Number of rows in this bin."
+
+  - name: mart_ml_threshold_metrics
+    tags: [marts, forecasting, ml]
+    description: |
+      Threshold-based classification metrics by dataset, model, cutoff, and threshold (from calibration_reports).
+      predicted_positive = count(p_pred >= threshold); tp, fp, tn, fn; precision, recall, fpr, fnr.
+    columns:
+      - name: dataset
+        description: "renewals or pipeline."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [renewals, pipeline]
+      - name: model_name
+        description: "logistic or xgboost."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [logistic, xgboost]
+      - name: cutoff_month
+        description: "Backtest cutoff month."
+      - name: threshold
+        description: "Classification threshold in [0.1, 0.9]."
+      - name: predicted_positive
+      - name: tp
+      - name: fp
+      - name: tn
+      - name: fn
+      - name: precision
+      - name: recall
+      - name: fpr
+      - name: fnr
+
+  - name: mart_ml_cost_curves
+    tags: [marts, forecasting, ml]
+    description: |
+      Expected cost at each threshold by dataset, model, cutoff (from calibration_reports).
+      Renewals: fn_cost=5, fp_cost=1; pipeline: fn_cost=2, fp_cost=3.
+    columns:
+      - name: dataset
+        description: "renewals or pipeline."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [renewals, pipeline]
+      - name: model_name
+        description: "logistic or xgboost."
+        tests:
+          - accepted_values:
+              arguments:
+                values: [logistic, xgboost]
+      - name: cutoff_month
+        description: "Backtest cutoff month."
+      - name: threshold
+        description: "Threshold in [0.1, 0.9]."
+      - name: expected_cost
+        description: "fn * fn_cost + fp * fp_cost."

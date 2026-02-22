@@ -107,6 +107,27 @@ models:
             - snapshot_date
             - opportunity_id
 
+  - name: stg_ml_renewal_predictions
+    tags: [staging]
+    description: |
+      Staging for ML renewal predictions from DuckDB table ml_renewal_predictions (written by forecasting train_renewals).
+      When the table does not exist, returns zero rows with the same schema. Keeps latest as_of_month per model_name.
+    columns:
+      - name: company_id
+        description: "Tenant identifier."
+      - name: customer_id
+        description: "Customer identifier within company."
+      - name: renewal_month
+        description: "First day of renewal month."
+      - name: as_of_month
+        description: "Run month (max renewal_month in training data when model was trained)."
+      - name: model_name
+        description: "Model that produced the prediction (logistic, xgboost)."
+      - name: p_renew_ml
+        description: "ML probability of renewal (0-1)."
+      - name: created_at_utc
+        description: "When the prediction was written (UTC)."
+
   - name: stg_usage_monthly
     tags: [staging]
     description: "Staging monthly usage. company_id on all; composite FK (company_id, customer_id) -> stg_customers (see tests/assert_stg_usage_monthly_customer_fk.sql). month as date; usage_per_user = usage_count / nullif(active_users, 0); feature_key lowercase."

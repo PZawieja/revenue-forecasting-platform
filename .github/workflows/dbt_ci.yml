@@ -53,3 +53,73 @@ jobs:
         env:
           DBT_PROFILES_DIR: ./profiles
         run: dbt test
+
+  ml_ci:
+    runs-on: ubuntu-latest
+    needs: [dbt]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Create warehouse directory
+        run: mkdir -p warehouse
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: dbt seed (ML feature tables)
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt seed --full-refresh
+
+      - name: dbt run (ML feature tables)
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt run
+
+      - name: Publish model selection
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.src.publish_model_selection --duckdb-path ./warehouse/revenue_forecasting.duckdb
+
+      - name: Train renewals
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.src.train_renewals --duckdb-path ./warehouse/revenue_forecasting.duckdb --model both
+
+      - name: Train pipeline
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.src.train_pipeline --duckdb-path ./warehouse/revenue_forecasting.duckdb --model both
+
+      - name: Backtest renewals
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.src.backtest_renewals --duckdb-path ./warehouse/revenue_forecasting.duckdb --model both
+
+      - name: Backtest pipeline
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.src.backtest_pipeline --duckdb-path ./warehouse/revenue_forecasting.duckdb --model both
+
+      - name: Calibration reports
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.src.calibration_reports --duckdb-path ./warehouse/revenue_forecasting.duckdb
+
+      - name: ML quality gates
+        run: |
+          PYTHONPATH="$GITHUB_WORKSPACE" python -m forecasting.src.ci_quality_gates --duckdb-path ./warehouse/revenue_forecasting.duckdb
+
+      - name: dbt run (ML marts)
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt run
+
+      - name: dbt test (ML marts)
+        working-directory: dbt
+        env:
+          DBT_PROFILES_DIR: ./profiles
+        run: dbt test

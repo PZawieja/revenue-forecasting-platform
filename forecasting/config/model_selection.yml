@@ -1,0 +1,4 @@
+renewals:
+  preferred_model: logistic
+pipeline:
+  preferred_model: logistic
