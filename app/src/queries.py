@@ -142,6 +142,79 @@ def get_forecast_timeseries_fallback(scenario: str, segment: str) -> tuple[str, 
     return sql.strip(), {"scenario": scenario}
 
 
+def get_arr_waterfall(month: str, scenario: str, segment: str) -> tuple[str, dict[str, Any]]:
+    """
+    One row from mart_arr_waterfall_monthly for (month, scenario). segment='All' aggregates across segments.
+    Columns: starting_arr, new_arr, expansion_arr, contraction_arr, churn_arr, ending_arr, net_new_arr, nrr, grr.
+    """
+    if segment and segment != "All":
+        sql = """
+        SELECT
+            month,
+            segment,
+            scenario,
+            sum(starting_arr) AS starting_arr,
+            sum(new_arr) AS new_arr,
+            sum(expansion_arr) AS expansion_arr,
+            sum(contraction_arr) AS contraction_arr,
+            sum(churn_arr) AS churn_arr,
+            sum(ending_arr) AS ending_arr,
+            sum(net_new_arr) AS net_new_arr,
+            (sum(starting_arr) + sum(expansion_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0) AS nrr,
+            (sum(starting_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0) AS grr
+        FROM main.mart_arr_waterfall_monthly
+        WHERE month = $month AND scenario = $scenario AND segment = $segment
+        GROUP BY month, segment, scenario
+        """
+        return sql.strip(), {"month": month, "scenario": scenario, "segment": segment}
+    sql = """
+    SELECT
+        month,
+        'All' AS segment,
+        scenario,
+        sum(starting_arr) AS starting_arr,
+        sum(new_arr) AS new_arr,
+        sum(expansion_arr) AS expansion_arr,
+        sum(contraction_arr) AS contraction_arr,
+        sum(churn_arr) AS churn_arr,
+        sum(ending_arr) AS ending_arr,
+        sum(net_new_arr) AS net_new_arr,
+        (sum(starting_arr) + sum(expansion_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0) AS nrr,
+        (sum(starting_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0) AS grr
+    FROM main.mart_arr_waterfall_monthly
+    WHERE month = $month AND scenario = $scenario
+    GROUP BY month, scenario
+    """
+    return sql.strip(), {"month": month, "scenario": scenario}
+
+
+def get_arr_reconciliation(month: str, scenario: str, segment: str) -> tuple[str, dict[str, Any]]:
+    """
+    Reconciliation check for (month, scenario, segment). ok_flag, diff. Caller handles missing table.
+    """
+    if segment and segment != "All":
+        sql = """
+        SELECT
+            bool_and(arr_reconciliation_ok_flag) AS ok_flag,
+            sum(arr_reconciliation_diff) AS diff
+        FROM main.mart_arr_reconciliation_checks
+        WHERE month = $month AND scenario = $scenario AND segment = $segment
+        GROUP BY month, scenario, segment
+        """
+        params = {"month": month, "scenario": scenario, "segment": segment}
+    else:
+        sql = """
+        SELECT
+            bool_and(arr_reconciliation_ok_flag) AS ok_flag,
+            sum(arr_reconciliation_diff) AS diff
+        FROM main.mart_arr_reconciliation_checks
+        WHERE month = $month AND scenario = $scenario
+        GROUP BY month, scenario
+        """
+        params = {"month": month, "scenario": scenario}
+    return sql.strip(), params
+
+
 # Legacy placeholders (for other pages)
 def sql_executive_forecast_summary() -> str:
     return "SELECT * FROM main.mart_executive_forecast_summary LIMIT 100"
