@@ -313,5 +313,41 @@ def sql_churn_risk_watchlist() -> str:
     return "SELECT * FROM main.mart_churn_risk_watchlist LIMIT 100"
 
 
+def get_model_selection() -> tuple[str, dict[str, Any]]:
+    """Read ml_model_selection (dataset, preferred_model, selection_reason, scores if present). Caller handles missing table."""
+    sql = """
+    SELECT * FROM main.ml_model_selection ORDER BY dataset
+    """
+    return sql.strip(), {}
+
+
+def get_latest_backtest_metrics(dataset: str) -> tuple[str, dict[str, Any]]:
+    """
+    Latest cutoff_month metrics from ml_renewal_backtest_metrics or ml_pipeline_backtest_metrics.
+    Returns all columns (model_name, segment, auc, brier, logloss, etc.). Caller handles missing table.
+    """
+    table = "main.ml_renewal_backtest_metrics" if dataset == "renewals" else "main.ml_pipeline_backtest_metrics"
+    sql = f"""
+    SELECT * FROM {table}
+    WHERE cutoff_month = (SELECT max(cutoff_month) FROM {table})
+    ORDER BY model_name, segment
+    """
+    return sql.strip(), {}
+
+
+def get_latest_calibration_bins(dataset: str, model_name: str) -> tuple[str, dict[str, Any]]:
+    """
+    Calibration bins 1..10 for latest cutoff_month from ml_calibration_bins. Caller handles missing table.
+    """
+    sql = """
+    SELECT bin_id, p_pred_mean, y_true_rate, count
+    FROM main.ml_calibration_bins
+    WHERE dataset = $dataset AND model_name = $model_name
+      AND cutoff_month = (SELECT max(cutoff_month) FROM main.ml_calibration_bins WHERE dataset = $dataset AND model_name = $model_name)
+    ORDER BY bin_id
+    """
+    return sql.strip(), {"dataset": dataset, "model_name": model_name}
+
+
 def sql_ml_calibration_bins() -> str:
     return "SELECT * FROM main.mart_ml_calibration_bins LIMIT 100"
