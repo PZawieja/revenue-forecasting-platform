@@ -1,5 +1,5 @@
-with source as (
-    select * from {{ ref('usage_monthly') }}
+with src as (
+    {{ get_source_relation('usage_monthly') }}
 ),
 
 renamed as (
@@ -11,7 +11,7 @@ renamed as (
         usage_count::double as usage_count,
         active_users::integer as active_users,
         usage_count::double / nullif(active_users::double, 0) as usage_per_user
-    from source
+    from src
 )
 
 select * from renamed

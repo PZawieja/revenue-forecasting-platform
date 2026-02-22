@@ -1,5 +1,5 @@
-with source as (
-    select * from {{ ref('pipeline_opportunities_snapshot') }}
+with src as (
+    {{ get_source_relation('pipeline_opportunities_snapshot') }}
 ),
 
 renamed as (
@@ -15,7 +15,7 @@ renamed as (
         lower(opportunity_type) as opportunity_type,
         date_trunc('month', cast(snapshot_date as date))::date as snapshot_month,
         date_trunc('month', cast(expected_close_date as date))::date as expected_close_month
-    from source
+    from src
 )
 
 select * from renamed

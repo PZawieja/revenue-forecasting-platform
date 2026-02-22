@@ -2,6 +2,12 @@
 version: 2
 
 models:
+  - name: int_sim_data_check
+    tags: [intermediate, sim]
+    description: |
+      When data_mode=sim, selects from sim Parquet to fail fast if files are missing.
+      No-op when data_mode=demo. Run ./scripts/sim_generate.sh before dbt run --vars '{data_mode: sim}'.
+
   - name: int_month_spine
     tags: [intermediate, forecasting]
     description: |

@@ -4,6 +4,10 @@ config-version: 2
 
 profile: "revenue_forecasting_platform"
 
+vars:
+  data_mode: "demo"   # demo | sim
+  sim_data_path: "../warehouse/sim_data"
+
 model-paths: ["models"]
 seed-paths: ["seeds"]
 macro-paths: ["macros"]

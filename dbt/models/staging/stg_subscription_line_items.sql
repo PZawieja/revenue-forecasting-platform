@@ -1,5 +1,5 @@
-with source as (
-    select * from {{ ref('subscription_line_items') }}
+with src as (
+    {{ get_source_relation('subscription_line_items') }}
 ),
 
 renamed as (
@@ -18,7 +18,7 @@ renamed as (
         date_trunc('month', cast(contract_start_date as date))::date as contract_start_month,
         date_trunc('month', cast(contract_end_date as date))::date as contract_end_month,
         date_trunc('month', cast(contract_end_date as date))::date as renewal_month
-    from source
+    from src
 )
 
 select * from renamed

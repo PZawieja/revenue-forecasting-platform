@@ -1,5 +1,5 @@
-with source as (
-    select * from {{ ref('customers') }}
+with src as (
+    {{ get_source_relation('customers') }}
 ),
 
 renamed as (
@@ -16,7 +16,7 @@ renamed as (
             when lower(segment) in ('enterprise', 'large') then 'enterprise_large'
             else 'mid_smb'
         end as segment_group
-    from source
+    from src
 )
 
 select * from renamed

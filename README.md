@@ -63,12 +63,17 @@ New to the repo? Get up to speed in a few minutes:
 
 ## Quickstart
 
+dbt can run in two data modes (set via `vars` in `dbt/dbt_project.yml` or `--vars`):
+
+- **Demo mode (default):** Reads from CSV seeds under `dbt/seeds`. Run `dbt seed`, then `dbt run` and `dbt test`.
+- **Sim mode:** Reads from Parquet under `./warehouse/sim_data` (no seed load required). Generate sim data first, then run dbt with `--vars '{data_mode: sim}'`.
+
 From the repo root, using the provided scripts (they use **`DBT_PROFILES_DIR=./profiles`** from within `dbt/` so no `~/.dbt` config is needed):
 
 ```bash
 ./scripts/setup.sh       # one-time: create .venv, install requirements.txt
 ./scripts/dbt_debug.sh   # verify connection
-./scripts/dbt_seed.sh    # load seeds
+./scripts/dbt_seed.sh    # load seeds (demo mode only; optional in sim mode)
 ./scripts/dbt_run.sh     # build models
 ./scripts/dbt_test.sh    # run tests
 ```
@@ -136,11 +141,12 @@ Exports: executive forecast summary (latest 12 months), ARR waterfall (latest 6 
 
 A **realistic simulation mode** dataset generator produces Parquet files for DuckDB/dbt consumption (e.g. for demos or stress tests without production data). Config lives in `forecasting/sim/config/sim_config.yml` (segment mix, churn targets, pipeline and usage parameters). Outputs are written under **`warehouse/sim_data/`** (customers, products, subscription_line_items, pipeline_opportunities_snapshot, usage_monthly). Sim outputs are not committed (see `.gitignore`).
 
-```bash
-./scripts/sim_generate.sh
-```
+**How to run in sim mode:**
 
-Or: `PYTHONPATH=. python -m forecasting.sim.src.simulate --config forecasting/sim/config/sim_config.yml`. To consume sim data in dbt, point seeds or a custom source to the Parquet files under `warehouse/sim_data/` (ingestion path is not wired by default).
+1. Generate sim data: `./scripts/sim_generate.sh`
+2. Run dbt with sim vars: `cd dbt && dbt run --vars '{data_mode: sim}'` (and `dbt test --vars '{data_mode: sim}'` if desired).
+
+`dbt seed` is **not required** in sim mode (staging reads from Parquet). You can still run `dbt seed` if you want seeds present for other uses. If you run `dbt run --vars '{data_mode: sim}'` without generating first, dbt will error clearly when it tries to read the missing Parquet files (e.g. from `int_sim_data_check` or staging models).
 
 ---
 
