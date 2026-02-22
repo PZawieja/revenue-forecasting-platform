@@ -168,10 +168,11 @@ Train renewal and pipeline models, **publish the preferred model per dataset** t
 
 ```bash
 ./scripts/setup.sh
-./scripts/run_all.sh
+./scripts/run_all.sh          # demo mode (default): dbt seed + run, then ML
+./scripts/run_all.sh sim      # sim mode: sim_generate.sh, then dbt run --vars '{data_mode: sim}', then ML
 ```
 
-`run_all.sh` runs dbt (seed + run), **publish_model_selection** (reads `forecasting/config/model_selection.yml` → writes `ml_model_selection`), trains both models, then reruns dbt so staging filters to the preferred model and the forecast consumes it.
+`run_all.sh` runs dbt (seed + run in **demo**; sim generate + dbt run in **sim**), **publish_model_selection**, trains both models, then reruns dbt so staging filters to the preferred model and the forecast consumes it. **ML quality metrics** (backtest, calibration) are most meaningful in **sim mode** due to scale and controlled noise; demo seeds are small and may yield noisy metrics.
 
 Single-domain ML:
 
@@ -202,7 +203,7 @@ Preferred model per dataset (renewals, pipeline) can be chosen automatically fro
 
 ## ML model quality
 
-The platform reports portfolio-grade calibration and business-impact metrics for renewal and pipeline probability models (from backtest outputs):
+The platform reports portfolio-grade calibration and business-impact metrics for renewal and pipeline probability models (from backtest outputs). These metrics are **most meaningful in sim mode** (realistic scale and noise); demo seeds are small and may yield noisy or unreliable backtest/calibration numbers.
 
 - **Brier score** — Mean squared error between predicted probabilities and outcomes (0 = perfect, 0.25 = no better than 50/50). Reported in `ml_renewal_backtest_metrics` and `ml_pipeline_backtest_metrics` per cutoff and model; lower is better.
 - **Calibration bins** — Predictions are grouped into 10 probability bins (e.g. 0–0.1, 0.1–0.2, …). For each bin we store the average predicted probability (`p_pred_mean`) and the empirical success rate (`y_true_rate`). A well-calibrated model has `p_pred_mean ≈ y_true_rate` in every bin; large gaps indicate over- or under-confidence. Exposed in **mart_ml_calibration_bins**.

@@ -4,6 +4,15 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# Optional first argument: demo (default) | sim
+MODE="${1:-demo}"
+if [ "$MODE" != "demo" ] && [ "$MODE" != "sim" ]; then
+  echo "Usage: $0 [demo|sim]" >&2
+  echo "  demo (default): dbt seed + dbt run with default vars" >&2
+  echo "  sim: ./scripts/sim_generate.sh then dbt run with data_mode=sim" >&2
+  exit 1
+fi
+
 if [ ! -d "$REPO_ROOT/.venv" ]; then
   echo "No .venv found. Create it first (e.g. ./scripts/setup.sh)." >&2
   exit 1
@@ -11,11 +20,22 @@ fi
 
 mkdir -p "$REPO_ROOT/warehouse"
 
-echo "Building feature tables via dbt (seed + run)..."
+if [ "$MODE" = "sim" ]; then
+  echo "Generating sim data..."
+  "$SCRIPT_DIR/sim_generate.sh"
+  DBT_VARS="--vars '{data_mode: sim}'"
+  echo "Building feature tables via dbt (sim mode, no seed)..."
+else
+  DBT_VARS=""
+  echo "Building feature tables via dbt (seed + run)..."
+fi
+
 cd "$REPO_ROOT/dbt"
 export DBT_PROFILES_DIR=./profiles
-"$REPO_ROOT/.venv/bin/dbt" seed
-"$REPO_ROOT/.venv/bin/dbt" run
+if [ "$MODE" = "demo" ]; then
+  "$REPO_ROOT/.venv/bin/dbt" seed
+fi
+"$REPO_ROOT/.venv/bin/dbt" run $DBT_VARS
 
 echo "Publishing model selection to DuckDB..."
 cd "$REPO_ROOT"
@@ -31,7 +51,7 @@ PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.src.train_p
 echo "Rerunning dbt so forecast consumes ML..."
 cd "$REPO_ROOT/dbt"
 export DBT_PROFILES_DIR=./profiles
-"$REPO_ROOT/.venv/bin/dbt" run
+"$REPO_ROOT/.venv/bin/dbt" run $DBT_VARS
 
 echo "Running backtests (renewals + pipeline)..."
 cd "$REPO_ROOT"
@@ -47,6 +67,6 @@ PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.src.select_
 echo "Rerunning dbt so forecast uses champion model..."
 cd "$REPO_ROOT/dbt"
 export DBT_PROFILES_DIR=./profiles
-"$REPO_ROOT/.venv/bin/dbt" run
+"$REPO_ROOT/.venv/bin/dbt" run $DBT_VARS
 
-echo "run_all.sh done."
+echo "run_all.sh done ($MODE mode)."

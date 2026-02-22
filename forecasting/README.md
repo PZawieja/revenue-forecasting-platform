@@ -16,7 +16,9 @@
 **How to run:**
 
 - From the repo root: `./scripts/ml_train_renewals.sh` (and similar scripts for pipeline probabilities, backtesting).
-- Ensure `dbt seed` and `dbt run` have been executed so the warehouse is populated before training.
+- Ensure `dbt seed` and `dbt run` have been executed so the warehouse is populated before training (or use sim mode: `./scripts/run_all.sh sim`).
+
+**Data mode:** ML feature tables (`ml_features_renewals`, `ml_features_pipeline`) are built the same way whether input comes from **demo** seeds or **sim** Parquet; staging abstracts the source. **ML quality metrics** (backtest Brier, logloss, calibration) are most meaningful in **sim mode**, where scale and noise are controlled; demo seeds are small and can yield noisy or unreliable metrics.
 
 **Layout:**
 
