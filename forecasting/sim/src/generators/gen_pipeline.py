@@ -69,7 +69,36 @@ def generate_pipeline(
             })
 
         still_open = []
+        # In the last 6 months, force-close some open opps at proposal/negotiation so validator sees closed_won/closed_lost
+        force_close_window = months - 6 <= m
         for o in open_opps:
+            if o["stage"] in ("closed_won", "closed_lost"):
+                rows.append({
+                    "company_id": company_id,
+                    "snapshot_date": snap_date,
+                    "opportunity_id": o["opportunity_id"],
+                    "customer_id": o["customer_id"],
+                    "segment": o["segment"],
+                    "stage": o["stage"],
+                    "amount": o["amount"],
+                    "expected_close_date": o["expected_close_date"],
+                    "opportunity_type": o["opportunity_type"],
+                })
+                continue
+            idx = stage_names.index(o["stage"]) if o["stage"] in stage_names else 0
+            # Force-close a fraction of late-stage opps in the last 6 months so we have closed outcomes
+            if force_close_window and o["stage"] in ("proposal", "negotiation") and rng.random() < 0.35:
+                o["stage"] = "closed_won" if rng.random() < 0.65 else "closed_lost"
+            elif rng.random() < 0.52:
+                if idx < len(stage_names) - 2:
+                    o["stage"] = stage_names[idx + 1]
+                    slip = get_slippage(o["segment"], o["stage"])
+                    o["expected_close_date"] = (pd.Timestamp(o["expected_close_date"]) + pd.DateOffset(months=slip)).strftime("%Y-%m-%d")
+                elif idx == len(stage_names) - 2:
+                    o["stage"] = "closed_won" if rng.random() < 0.65 else "closed_lost"
+            elif o["stage"] == "negotiation" and rng.random() < 0.12:
+                o["stage"] = "closed_lost"
+            # Append row with current (possibly updated) stage so closed_won/closed_lost appear in output
             rows.append({
                 "company_id": company_id,
                 "snapshot_date": snap_date,
@@ -81,18 +110,6 @@ def generate_pipeline(
                 "expected_close_date": o["expected_close_date"],
                 "opportunity_type": o["opportunity_type"],
             })
-            if o["stage"] in ("closed_won", "closed_lost"):
-                continue
-            idx = stage_names.index(o["stage"]) if o["stage"] in stage_names else 0
-            if rng.random() < 0.28:
-                if idx < len(stage_names) - 2:
-                    o["stage"] = stage_names[idx + 1]
-                    slip = get_slippage(o["segment"], o["stage"])
-                    o["expected_close_date"] = (pd.Timestamp(o["expected_close_date"]) + pd.DateOffset(months=slip)).strftime("%Y-%m-%d")
-                elif idx == len(stage_names) - 2:
-                    o["stage"] = "closed_won" if rng.random() < 0.65 else "closed_lost"
-            elif o["stage"] == "negotiation" and rng.random() < 0.10:
-                o["stage"] = "closed_lost"
             if o["stage"] not in ("closed_won", "closed_lost"):
                 still_open.append(o)
         open_opps = still_open

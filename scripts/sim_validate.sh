@@ -10,4 +10,4 @@ if [ ! -d "$REPO_ROOT/.venv" ]; then
 fi
 
 cd "$REPO_ROOT"
-PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.sim.src.validate_simulation --config forecasting/sim/config/sim_config.yml
+PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.sim.src.validate_simulation --config forecasting/sim/config/sim_config.yml "$@"

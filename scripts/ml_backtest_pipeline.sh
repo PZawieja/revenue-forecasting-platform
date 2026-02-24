@@ -19,6 +19,6 @@ export DBT_PROFILES_DIR=./profiles
 
 echo "Running pipeline close-probability ML backtest..."
 cd "$REPO_ROOT"
-PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.src.backtest_pipeline --duckdb-path ./warehouse/revenue_forecasting.duckdb
+PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.src.backtest_pipeline --duckdb-path ./warehouse/revenue_forecasting.duckdb --model logistic
 
 echo "ml_backtest_pipeline.sh done."

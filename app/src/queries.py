@@ -160,8 +160,8 @@ def get_arr_waterfall(month: str, scenario: str, segment: str) -> tuple[str, dic
             sum(churn_arr) AS churn_arr,
             sum(ending_arr) AS ending_arr,
             sum(net_new_arr) AS net_new_arr,
-            (sum(starting_arr) + sum(expansion_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0) AS nrr,
-            (sum(starting_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0) AS grr
+            case when nullif(sum(starting_arr), 0) is null then null else coalesce((sum(starting_arr) + sum(expansion_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0), 1) end AS nrr,
+            case when nullif(sum(starting_arr), 0) is null then null else coalesce((sum(starting_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0), 1) end AS grr
         FROM main.mart_arr_waterfall_monthly
         WHERE month = $month AND scenario = $scenario AND segment = $segment
         GROUP BY month, segment, scenario
@@ -179,13 +179,53 @@ def get_arr_waterfall(month: str, scenario: str, segment: str) -> tuple[str, dic
         sum(churn_arr) AS churn_arr,
         sum(ending_arr) AS ending_arr,
         sum(net_new_arr) AS net_new_arr,
-        (sum(starting_arr) + sum(expansion_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0) AS nrr,
-        (sum(starting_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0) AS grr
+        case when nullif(sum(starting_arr), 0) is null then null else coalesce((sum(starting_arr) + sum(expansion_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0), 1) end AS nrr,
+        case when nullif(sum(starting_arr), 0) is null then null else coalesce((sum(starting_arr) - sum(contraction_arr) - sum(churn_arr)) / nullif(sum(starting_arr), 0), 1) end AS grr
     FROM main.mart_arr_waterfall_monthly
     WHERE month = $month AND scenario = $scenario
     GROUP BY month, scenario
     """
     return sql.strip(), {"month": month, "scenario": scenario}
+
+
+def get_arr_waterfall_recent(scenario: str, segment: str, limit_months: int = 6) -> tuple[str, dict[str, Any]]:
+    """
+    Last N months that have non-zero ARR from mart_arr_waterfall_monthly (so we don't show future/empty months).
+    """
+    if segment and segment != "All":
+        sql = """
+        WITH agg AS (
+            SELECT month, segment, scenario,
+                sum(starting_arr) AS starting_arr, sum(ending_arr) AS ending_arr,
+                sum(new_arr) AS new_arr, sum(expansion_arr) AS expansion_arr,
+                sum(contraction_arr) AS contraction_arr, sum(churn_arr) AS churn_arr
+            FROM main.mart_arr_waterfall_monthly
+            WHERE scenario = $scenario AND segment = $segment
+            GROUP BY month, segment, scenario
+        )
+        SELECT * FROM agg
+        WHERE starting_arr > 0 OR ending_arr > 0
+        ORDER BY month DESC
+        LIMIT $limit_months
+        """
+        return sql.strip(), {"scenario": scenario, "segment": segment, "limit_months": limit_months}
+    # Aggregate first, then filter to months with data (DuckDB: use subquery so HAVING applies to sums)
+    sql = """
+    WITH agg AS (
+        SELECT month, 'All' AS segment, scenario,
+            sum(starting_arr) AS starting_arr, sum(ending_arr) AS ending_arr,
+            sum(new_arr) AS new_arr, sum(expansion_arr) AS expansion_arr,
+            sum(contraction_arr) AS contraction_arr, sum(churn_arr) AS churn_arr
+        FROM main.mart_arr_waterfall_monthly
+        WHERE scenario = $scenario
+        GROUP BY month, scenario
+    )
+    SELECT * FROM agg
+    WHERE starting_arr > 0 OR ending_arr > 0
+    ORDER BY month DESC
+    LIMIT $limit_months
+    """
+    return sql.strip(), {"scenario": scenario, "limit_months": limit_months}
 
 
 def get_arr_reconciliation(month: str, scenario: str, segment: str) -> tuple[str, dict[str, Any]]:
@@ -223,6 +263,7 @@ def get_churn_risk_watchlist(month: str, segment: str) -> tuple[str, dict[str, A
     if segment and segment != "All":
         sql = """
         SELECT
+            w.risk_rank,
             coalesce(c.customer_name, w.customer_id::varchar) AS customer_name,
             w.segment,
             w.months_to_renewal,
@@ -240,6 +281,7 @@ def get_churn_risk_watchlist(month: str, segment: str) -> tuple[str, dict[str, A
         return sql.strip(), {"month": month, "segment": segment}
     sql = """
     SELECT
+        w.risk_rank,
         coalesce(c.customer_name, w.customer_id::varchar) AS customer_name,
         w.segment,
         w.months_to_renewal,

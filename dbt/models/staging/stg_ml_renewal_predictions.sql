@@ -1,6 +1,7 @@
 -- Staging for ML renewal predictions. Reads from DuckDB ml_renewal_predictions when it exists;
 -- filters to the preferred model for renewals (stg_ml_model_selection), keeps latest as_of_month.
 -- Exposes p_renew_ml and p_renew_source = 'ml_' || preferred_model.
+-- depends_on: {{ ref('stg_ml_model_selection') }}
 
 {% if table_exists('main', 'ml_renewal_predictions') == 'true' %}
 with selection as (

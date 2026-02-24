@@ -22,12 +22,8 @@ from forecasting.src.train_pipeline import (
     prepare_features,
     train_logistic,
     train_xgboost,
+    _proba_positive,
 )
-
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None
 
 DEFAULT_LAST_N_CUTOFFS = 6
 
@@ -44,10 +40,11 @@ def _evaluate(y_true: np.ndarray, p_pred: np.ndarray) -> dict[str, float]:
     p_pred = np.clip(np.asarray(p_pred, dtype=float), 1e-7, 1 - 1e-7)
     y_true = np.asarray(y_true, dtype=float)
     n_unique = len(np.unique(y_true))
+    logloss = float(log_loss(y_true, p_pred, labels=[0.0, 1.0]))
     return {
         "auc": float(roc_auc_score(y_true, p_pred)) if n_unique > 1 else 0.0,
         "brier": _brier(y_true, p_pred),
-        "logloss": float(log_loss(y_true, p_pred)),
+        "logloss": logloss,
     }
 
 
@@ -79,7 +76,7 @@ def run_backtest(
     for cutoff_month in cutoff_months:
         train_df = df[df["snapshot_month"] < cutoff_month]
         test_df = df[df["snapshot_month"] == cutoff_month]
-        if test_df.empty:
+        if test_df.empty or train_df.empty:
             continue
 
         y_test = test_df[TARGET].values
@@ -99,12 +96,10 @@ def run_backtest(
         for model_name in models_to_run:
             if model_name == "logistic":
                 model, _ = train_logistic(X_train_scaled, y_train, X_test_scaled, y_test)
-                p_pred = model.predict_proba(X_test_scaled)[:, 1]
+                p_pred = _proba_positive(model, X_test_scaled)
             elif model_name == "xgboost":
-                if xgb is None:
-                    continue
                 model, _ = train_xgboost(X_train_raw, y_train, X_test_raw, y_test)
-                p_pred = model.predict_proba(X_test_raw)[:, 1]
+                p_pred = _proba_positive(model, X_test_raw)
             else:
                 continue
 

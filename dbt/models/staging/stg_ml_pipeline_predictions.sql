@@ -1,6 +1,7 @@
 -- Staging for ML pipeline close predictions. Reads from DuckDB ml_pipeline_predictions when it exists;
 -- filters to the preferred model for pipeline (stg_ml_model_selection), keeps latest as_of_month per model.
 -- Exposes p_close_ml and p_close_source = 'ml_' || preferred_model.
+-- depends_on: {{ ref('stg_ml_model_selection') }}
 
 {% if table_exists('main', 'ml_pipeline_predictions') == 'true' %}
 with selection as (

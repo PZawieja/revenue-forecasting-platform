@@ -1,9 +1,9 @@
 # Run from dbt/ with: dbt debug --profiles-dir .
-# No profile is created in ~/.dbt.
+# Prefer dbt/profiles/profiles.yml (used by Makefile and run_all.sh). This file kept in sync for ad-hoc runs.
 revenue_forecasting_platform:
   target: dev
   outputs:
     dev:
       type: duckdb
-      path: ../duckdb/revenue_forecasting.duckdb
+      path: ../warehouse/revenue_forecasting.duckdb
       schema: main

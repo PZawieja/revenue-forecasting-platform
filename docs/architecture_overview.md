@@ -93,6 +93,7 @@ flowchart TB
 
 ## See also
 
+- [Runbook](RUNBOOK.md) — Reproducible setup, one-command flows, troubleshooting
 - [Demo script (3 min)](demo_script_3min.md)
 - [Founder pitch one-pager](founder_pitch_onepager.md)
 - [Company onboarding guide](company_onboarding_guide.md)

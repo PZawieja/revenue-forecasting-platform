@@ -1,7 +1,9 @@
+# Core deps; for strict reproducibility run: pip freeze > requirements-lock.txt (see docs/RUNBOOK.md)
 dbt-duckdb
 duckdb
 pandas
 numpy
+altair
 pyarrow
 scikit-learn
 xgboost

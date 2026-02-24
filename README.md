@@ -15,6 +15,7 @@ New to the repo? Get up to speed in a few minutes:
 | **[Founder pitch one-pager](docs/founder_pitch_onepager.md)** | Product name, ICP, value, differentiators, MVP vs v2, and high-level pricing tiers. |
 | **[ADRs](docs/adrs/README.md)** | Architecture Decision Records: deterministic baseline, ML as calibration, DuckDB + dbt. |
 | **[Golden queries](docs/golden_queries/README.md)** | Copy-paste SQL for common executive questions (forecast vs actual, ARR waterfall, risk, coverage, model quality). |
+| **[Runbook](docs/RUNBOOK.md)** | Reproducible setup, one-command flows, manual dbt, where outputs go, troubleshooting. |
 
 ---
 
@@ -61,47 +62,64 @@ New to the repo? Get up to speed in a few minutes:
 
 ---
 
-## Quickstart
+## Showcase run (recommended for audience)
 
-dbt can run in two data modes (set via `vars` in `dbt/dbt_project.yml` or `--vars`):
+Use **sim** data so the app shows **realistic forecasts**, **which model was selected and why**, and **backtest/calibration stats**. Demo (seed) data is minimal and often produces zeros or flat lines—not suitable for showing the platform.
 
-- **Demo mode (default):** Reads from CSV seeds under `dbt/seeds`. Run `dbt seed`, then `dbt run` and `dbt test`.
-- **Sim mode:** Reads from Parquet under `./warehouse/sim_data` (no seed load required). Generate sim data first, then run dbt with `--vars '{data_mode: sim}'`.
-
-From the repo root, using the provided scripts (they use **`DBT_PROFILES_DIR=./profiles`** from within `dbt/` so no `~/.dbt` config is needed):
+**One command** (from repo root; close the app first if it’s running so DuckDB isn’t locked):
 
 ```bash
-./scripts/setup.sh       # one-time: create .venv, install requirements.txt
+./scripts/setup.sh    # one-time
+make showcase
+```
+
+This will: generate sim data (24 months, 1200 customers, segment mix, pipeline), validate it, run dbt and the full ML pipeline (train, backtest, calibration, champion selection), then open the Streamlit app.
+
+**What the audience will see:**
+
+- **Home** — Forecast ARR, actual ARR, MoM growth, confidence, pipeline coverage, and a forecast-vs-actual trend chart.
+- **Forecast vs Actual** — Time series with intervals, error/MAPE, and interpretation.
+- **ARR Waterfall** — Starting/ending ARR, new, expansion, contraction, churn, NRR/GRR, and a last-6-months summary.
+- **Risk Radar** — Churn risk watchlist (rank, customer, P(renew), health) and top ARR movers.
+- **Model Intelligence** — **Champion model** per dataset (renewals, pipeline) with **selection reason** and **scores**; **backtest metrics** (AUC, Brier, log loss) by segment; **calibration** (predicted vs actual rate by bin).
+
+To tweak sim size (e.g. more months or customers), edit `forecasting/sim/config/sim_config.yml` (e.g. `months: 36`, `n_customers_total: 2000`) and run `make showcase` again.
+
+---
+
+## Quickstart (modes and manual steps)
+
+dbt can run in two data modes (set via `vars` or `--vars`):
+
+- **Sim mode (recommended for showcase):** Parquet under `./warehouse/sim_data`. Use for **real-looking numbers**. Generate with `./scripts/sim_generate.sh`, then `dbt run --vars '{"data_mode": "sim"}'` (or use `make showcase`).
+- **Demo mode:** CSV seeds under `dbt/seeds`. **Minimal data**; good for smoke-testing only. Run `dbt seed`, then `dbt run` and `dbt test`.
+
+From the repo root:
+
+```bash
+./scripts/setup.sh       # one-time
 ./scripts/dbt_debug.sh   # verify connection
-./scripts/dbt_seed.sh    # load seeds (demo mode only; optional in sim mode)
-./scripts/dbt_run.sh     # build models
+./scripts/dbt_seed.sh    # demo only
+./scripts/dbt_run.sh     # build models (demo); for sim use make sim_demo or run_all.sh sim
 ./scripts/dbt_test.sh    # run tests
 ```
 
 Profile is in `dbt/profiles/profiles.yml` (DuckDB at `../warehouse/revenue_forecasting.duckdb` when run from `dbt/`).
 
-### Local demo (Streamlit)
+### Run the app (Streamlit)
 
-From the repo root, run the Revenue Intelligence Executive Cockpit (reads from DuckDB + dbt marts):
+From the repo root: `streamlit run app/Home.py` or `make app`. If marts are missing, the app shows a **Run checklist**. For a full, audience-ready run, use **`make showcase`** instead of `make demo`.
 
-```bash
-source .venv/bin/activate
-pip install -r requirements.txt
-streamlit run app/Home.py
-```
+### How to run it locally (manual build)
 
-If the DuckDB file or marts are missing, the app shows a **Run checklist** with the exact commands to build tables and optionally train ML.
-
-### How to run it locally (after Prompt 42+)
-
-From repo root:
+From repo root (use an absolute profile path so dbt finds the profile from any directory):
 
 ```bash
 source .venv/bin/activate
 pip install -r requirements.txt
 
 # Build tables
-export DBT_PROFILES_DIR=./dbt/profiles
+export DBT_PROFILES_DIR="$(pwd)/dbt/profiles"
 cd dbt
 dbt seed --full-refresh
 dbt run
@@ -115,16 +133,16 @@ cd ..
 streamlit run app/Home.py
 ```
 
-### One-command demo
+For more flows and troubleshooting, see **[Runbook](docs/RUNBOOK.md)**.
 
-From repo root:
+### One-command flows
 
-```bash
-make setup
-make demo
-```
-
-`make demo` runs a full build (dbt → ML → dbt) then starts the Streamlit app. For build-only: `make build`. To run only the app: `make app`.
+| Goal | Command |
+|------|---------|
+| **Audience showcase** (sim data, full ML, then app) | `make showcase` |
+| **Quick smoke-test** (demo seeds, then app) | `make demo` |
+| **Build only** (no app) | `make build` |
+| **App only** (marts must already exist) | `make app` |
 
 ### Demo Data Pack
 
@@ -253,6 +271,8 @@ Single-domain ML:
 
 **Switching preferred model:** Edit `forecasting/config/model_selection.yml` (set `preferred_model: logistic` or `preferred_model: xgboost` per dataset), then run `./scripts/publish_model_selection.sh` and rerun dbt (e.g. `./scripts/dbt_run.sh`). No retraining needed; dbt will use the newly preferred model from existing predictions.
 
+**macOS and XGBoost:** `make ml`, `run_all.sh`, and the ML scripts use **logistic** only by default so the pipeline runs without OpenMP (no `brew install libomp`). To use XGBoost, install libomp (`brew install libomp`) and run the train/backtest commands with `--model both`.
+
 All scripts ensure `.venv` exists (prompt to run `./scripts/setup.sh` if not), create `./warehouse/` if needed, and run dbt with `DBT_PROFILES_DIR=./profiles` from `dbt/`.
 
 ### Backtesting ML
@@ -307,7 +327,7 @@ Exposures in `dbt/models/exposures.yml` (Executive Forecast Summary, ARR Waterfa
 
 ## Reproducibility & local setup
 
-**Requirements:** Python 3.9+, Git.
+**Requirements:** Python 3.9+, Git. See **[Runbook](docs/RUNBOOK.md)** for a single reference (setup, flows, troubleshooting).
 
 1. **Clone and enter the repo**
    ```bash
@@ -318,19 +338,18 @@ Exposures in `dbt/models/exposures.yml` (Executive Forecast Summary, ARR Waterfa
    ```bash
    ./scripts/setup.sh
    ```
-   This creates `.venv`, activates it, and runs `pip install -r requirements.txt`.
+   This creates `.venv`, activates it, and runs `pip install -r requirements.txt`. For strict reproducibility you can pin versions: `pip freeze > requirements-lock.txt` (optional).
 
 3. **Configure the dbt profile**
-   - A **repo-local profile** lives in `dbt/profiles/profiles.yml`. The scripts set **`DBT_PROFILES_DIR=./profiles`** when running from `dbt/`, so no `~/.dbt` config is required.
+   - A **repo-local profile** lives in `dbt/profiles/profiles.yml`. Scripts run from `dbt/` with **`DBT_PROFILES_DIR=./profiles`**; when running dbt manually from repo root, use **`export DBT_PROFILES_DIR="$(pwd)/dbt/profiles"`** so the path is absolute.
    - The DuckDB path is `../warehouse/revenue_forecasting.duckdb` (relative to `dbt/`). The `warehouse/` directory is committed; only `*.duckdb` files are ignored.
 
-4. **Run dbt** — use the Quickstart scripts above, or manually from repo root:
+4. **Run dbt** — use the Quickstart scripts, or manually from repo root:
    ```bash
    export DBT_PROFILES_DIR="$(pwd)/dbt/profiles"
    cd dbt && ../.venv/bin/dbt debug
    ../.venv/bin/dbt seed && ../.venv/bin/dbt run && ../.venv/bin/dbt test
    ```
-   From inside `dbt/`: `export DBT_PROFILES_DIR=./profiles` then `../.venv/bin/dbt seed` (etc.).
 
 ---
 
@@ -369,19 +388,21 @@ If **both** logistic and xgboost exceed the thresholds for a given dataset, the 
 
 ## Screenshots
 
-| Page | Placeholder |
+| Page | Description |
 |------|-------------|
-| **Forecast vs Actual** | *Screenshot: forecast bands, scenarios, confidence.* |
-| **ARR Waterfall** | *Screenshot: bridge and reconciliation.* |
-| **Risk Radar** | *Screenshot: churn risk watchlist and top ARR movers.* |
-| **Model Intelligence** | *Screenshot: champion selection and calibration.* |
+| **Home** | Executive snapshot: forecast ARR, MoM growth, confidence, pipeline coverage; optional forecast trend chart. |
+| **Forecast vs Actual** | Line chart with forecast bands, scenarios, and confidence. |
+| **ARR Waterfall** | Month-over-month ARR bridge and reconciliation. |
+| **Risk Radar** | Churn risk watchlist and top ARR movers. |
+| **Model Intelligence** | Champion selection, backtest metrics, calibration (predicted vs actual rate by bin). |
 
-**Note:** Run Streamlit locally (`streamlit run app/Home.py`) and take screenshots; add them under `docs/screenshots/` and link here if desired.
+To capture screenshots: run `streamlit run app/Home.py` (or `make app`), open each page, and save images to `docs/screenshots/`; then link them in this table or in the docs.
 
 ---
 
 ## Documentation
 
+- **[Runbook](docs/RUNBOOK.md)** — Reproducible setup, one-command flows, troubleshooting.
 - **[Architecture overview](docs/architecture_overview.md)** — System narrative, Mermaid diagram, design decisions.
 - **[Demo script (3 min)](docs/demo_script_3min.md)** — Executive demo walkthrough.
 - **[Founder pitch one-pager](docs/founder_pitch_onepager.md)** — Product pitch and MVP/v2 scope.
@@ -392,15 +413,24 @@ If **both** logistic and xgboost exceed the thresholds for a given dataset, the 
 
 ---
 
-## ML Extension (Optional)
+## Which ML path?
 
-An optional **ML module** (`ml/`) provides a **renewal probability model** (logistic regression + calibration) that is portable across companies and integrates with dbt + DuckDB:
+| Path | Purpose |
+|------|---------|
+| **`forecasting/`** (primary) | Full pipeline used by **`run_all.sh`**: train renewals + pipeline (logistic/XGBoost), backtests, calibration, champion selection; writes predictions and model selection into DuckDB. This is the path for demos, sim, and CI. |
+| **`ml/`** (optional) | Alternative, per-company renewal workflow: export training set → train → calibrate → predict to Parquet; dbt can read via `ml_predictions__renewal`. Not wired into `run_all.sh`; see `ml/README.md` for standalone use. |
 
-- **dbt** builds time-valid feature and label tables (`ml_features__renewal`, `ml_labels__renewal`, `ml_dataset__renewal`) so training data never leaks future information.
-- **Python scripts** (run from repo root) train a model per `company_id`, calibrate probabilities, and write predictions to Parquet; **dbt** can then read that Parquet via `ml_predictions__renewal` for downstream use.
-- The same codebase and config support multiple companies; artifacts and outputs live in gitignored `ml/artifacts/` and `ml/outputs/`.
+The **deterministic rule-based forecast** is always the baseline; ML calibrates or replaces probabilities when enabled. Prefer **`forecasting/`** and **`run_all.sh`** for a single, reproducible ML flow.
 
-**Workflow:** After `dbt seed` and `dbt run`, run `build_training_set` → `train_renewal_model` → `calibrate_probabilities` → `predict_renewal` (see `ml/README.md`). The deterministic rule-based forecast in `int_renewal_probabilities` remains the default; the ML output is available for blending or comparison (TODO: full integration).
+## ML Extension (Optional): `ml/` module
+
+The **`ml/`** folder provides an **optional, alternative** renewal workflow (per-company, Parquet-based):
+
+- **dbt** builds feature/label tables (`ml_features__renewal`, `ml_labels__renewal`, `ml_dataset__renewal`).
+- **Python scripts** train per `company_id`, calibrate, and write predictions to Parquet; dbt reads via `ml_predictions__renewal`.
+- Artifacts live in gitignored `ml/artifacts/` and `ml/outputs/`.
+
+**Workflow:** See `ml/README.md`. For the **main** ML path (renewals + pipeline, backtests, champion selection), use **`forecasting/`** and **`./scripts/run_all.sh`**.
 
 ---
 

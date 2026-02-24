@@ -1,5 +1,7 @@
 # ML Extension (Renewal Probability)
 
+**Note:** This folder is an **optional, alternative** ML workflow. The **primary** ML pipeline (renewals + pipeline, backtests, calibration, champion selection) lives in **`forecasting/`** and is run via **`./scripts/run_all.sh`** — see the repo [README](../README.md) and [Runbook](../docs/RUNBOOK.md). Use this `ml/` module when you need a standalone, per-company renewal model with Parquet-based predictions.
+
 This folder contains a **portable, multi-company** ML module that integrates with the dbt + DuckDB revenue forecasting platform. It trains a **renewal probability model** (logistic regression + calibration) per `company_id` and writes predictions for dbt to consume.
 
 ## Prerequisites

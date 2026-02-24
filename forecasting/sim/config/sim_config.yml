@@ -1,5 +1,6 @@
 # Simulation mode: parameters for realistic dataset generation.
 # Outputs Parquet files under output.base_path for DuckDB/dbt consumption.
+# For a bigger audience showcase: try months: 36 and n_customers_total: 2000.
 
 random_seed: 42
 start_month: "2024-01-01"

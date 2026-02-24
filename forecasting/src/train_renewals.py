@@ -12,14 +12,10 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+from sklearn.dummy import DummyClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, log_loss
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
-
-try:
-    import xgboost as xgb
-except ImportError:
-    xgb = None
 
 from forecasting.src.io_duckdb import read_table, write_table
 
@@ -127,12 +123,21 @@ def evaluate(y_true: np.ndarray, p_pred: np.ndarray) -> dict[str, float]:
     from sklearn.metrics import roc_auc_score
 
     p_pred = np.clip(p_pred, 1e-7, 1 - 1e-7)
+    logloss = float(log_loss(y_true, p_pred, labels=[0.0, 1.0]))
     return {
         "auc": float(roc_auc_score(y_true, p_pred)) if len(np.unique(y_true)) > 1 else 0.0,
-        "logloss": float(log_loss(y_true, p_pred)),
+        "logloss": logloss,
         "brier": brier_score(y_true, p_pred),
         "accuracy": float(accuracy_score(y_true, (p_pred >= 0.5).astype(int))),
     }
+
+
+def _proba_positive(model, X: np.ndarray) -> np.ndarray:
+    """Probability of positive class (index 1); handles DummyClassifier with single class."""
+    proba = model.predict_proba(X)
+    if proba.shape[1] > 1:
+        return proba[:, 1]
+    return (1.0 - proba[:, 0]) if model.classes_[0] == 0 else proba[:, 0]
 
 
 def train_logistic(
@@ -140,11 +145,15 @@ def train_logistic(
     y_train: np.ndarray,
     X_val: np.ndarray,
     y_val: np.ndarray,
-) -> tuple[LogisticRegression, dict[str, float]]:
+) -> tuple:
     """Train Logistic Regression (scaled features), return model and validation metrics."""
-    model = LogisticRegression(max_iter=1000, random_state=42)
-    model.fit(X_train, y_train)
-    p_val = model.predict_proba(X_val)[:, 1]
+    try:
+        model = LogisticRegression(max_iter=1000, random_state=42)
+        model.fit(X_train, y_train)
+    except ValueError:
+        model = DummyClassifier(strategy="most_frequent", random_state=42)
+        model.fit(X_train, y_train)
+    p_val = _proba_positive(model, X_val)
     metrics = evaluate(y_val, p_val)
     return model, metrics
 
@@ -156,8 +165,10 @@ def train_xgboost(
     y_val: np.ndarray,
 ) -> tuple:
     """Train XGBoost classifier, return model and validation metrics."""
-    if xgb is None:
-        raise RuntimeError("xgboost is required; install with pip install xgboost")
+    try:
+        import xgboost as xgb
+    except Exception as e:
+        raise RuntimeError("xgboost is required and could not be loaded; install with pip install xgboost. On macOS you may need: brew install libomp") from e
     model = xgb.XGBClassifier(
         use_label_encoder=False,
         eval_metric="logloss",
@@ -214,10 +225,15 @@ def run_pipeline(
     for name in models_to_train:
         if name == "logistic":
             model, val_metrics = train_logistic(X_train_scaled, y_train, X_val_scaled, y_val)
-            model_final = LogisticRegression(max_iter=1000, random_state=42)
-            model_final.fit(X_full_scaled, y_full)
-            p_pred = model_final.predict_proba(X_full_scaled)[:, 1]
+            try:
+                model_final = LogisticRegression(max_iter=1000, random_state=42)
+                model_final.fit(X_full_scaled, y_full)
+            except ValueError:
+                model_final = DummyClassifier(strategy="most_frequent", random_state=42)
+                model_final.fit(X_full_scaled, y_full)
+            p_pred = _proba_positive(model_final, X_full_scaled)
         elif name == "xgboost":
+            import xgboost as xgb
             model, val_metrics = train_xgboost(X_train_raw, y_train, X_val_raw, y_val)
             model_final = xgb.XGBClassifier(use_label_encoder=False, eval_metric="logloss", random_state=42)
             model_final.fit(X_full_raw, y_full)

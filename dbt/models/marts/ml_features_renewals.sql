@@ -4,13 +4,19 @@
 
 {{ config(materialized='table') }}
 
-with subs as (
+with latest_month_for_filter as (
+    select (max(month) - interval '1 month')::date as max_renewal_month
+    from {{ ref('fct_subscription_line_item_monthly') }}
+),
+subs as (
     select
-        company_id,
-        customer_id,
-        contract_end_month as renewal_month
-    from {{ ref('stg_subscription_line_items') }}
-    where contract_end_month is not null
+        s.company_id,
+        s.customer_id,
+        s.contract_end_month as renewal_month
+    from {{ ref('stg_subscription_line_items') }} s
+    cross join latest_month_for_filter l
+    where s.contract_end_month is not null
+      and s.contract_end_month <= l.max_renewal_month
 ),
 
 renewal_spine as (
@@ -97,7 +103,7 @@ features as (
         c.segment_group,
         m.renewal_month,
         m.current_mrr_pre_renewal,
-        date_diff('month', l.max_month, m.renewal_month) as months_to_renewal,
+        greatest(0, date_diff('month', l.max_month, m.renewal_month)) as months_to_renewal,
         h.health_score_1_10,
         h.trailing_3m_slope_bucket as slope_bucket,
         h.trailing_3m_usage_per_user,

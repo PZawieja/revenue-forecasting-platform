@@ -17,14 +17,16 @@ from src.queries import (
     get_available_months,
     get_arr_reconciliation,
     get_arr_waterfall,
+    get_arr_waterfall_recent,
 )
-from src.ui import section_header
+from src.ui import footer, run_checklist, section_header
 
 if not is_data_available()[0]:
     st.warning("Run dbt + ML pipeline first to populate marts.")
     st.stop()
 
 section_header("ARR Waterfall", level=1)
+st.markdown("Month-over-month ARR movement: starting ARR, new business, expansion, contraction, churn, and ending ARR. Use scenario to compare base (actuals) vs upside/downside (forecast).")
 
 # Month list for selector
 try:
@@ -46,6 +48,22 @@ default_ix = 0 if month_options else 0
 month_str = st.selectbox("Month", options=month_options, index=default_ix, key="arr_month")
 scenario = st.selectbox("Scenario", options=["base", "upside", "downside"], index=0, key="arr_scenario")
 segment = st.selectbox("Segment", options=["All", "enterprise", "large", "medium", "smb"], index=0, key="arr_segment")
+
+# Recent months summary table
+try:
+    q_recent, p_recent = get_arr_waterfall_recent(scenario, segment, 6)
+    df_recent = read_sql(q_recent, p_recent)
+except Exception:
+    df_recent = pd.DataFrame()
+if not df_recent.empty:
+    st.markdown("**Last 6 months (summary)** — months with ARR data only.")
+    disp = df_recent[["month", "starting_arr", "ending_arr", "new_arr", "expansion_arr", "contraction_arr", "churn_arr"]].copy()
+    disp = disp.rename(columns={
+        "month": "Month", "starting_arr": "Starting ARR", "ending_arr": "Ending ARR",
+        "new_arr": "New", "expansion_arr": "Expansion", "contraction_arr": "Contraction", "churn_arr": "Churn",
+    })
+    st.dataframe(disp, use_container_width=True, hide_index=True)
+st.markdown("---")
 
 # Parse month for query (DuckDB date)
 month_val = month_str
@@ -87,12 +105,22 @@ if df.empty:
     st.stop()
 
 row = df.iloc[0]
+if (float(row.get("starting_arr") or 0) == 0 and (float(row.get("ending_arr") or 0) == 0):
+    st.info("No ARR data for this month (e.g. future month or no activity). Pick a month from the summary above or an earlier month.")
 cols_display = [
     "starting_arr", "new_arr", "expansion_arr", "contraction_arr", "churn_arr",
     "ending_arr", "net_new_arr", "nrr", "grr",
 ]
 table_data = {c: row.get(c) for c in cols_display if c in row}
 table_df = pd.DataFrame([table_data])
+# Show NRR/GRR as ratio or "—" when null (when starting_arr = 0)
+for rat in ["nrr", "grr"]:
+    if rat in table_df.columns:
+        v = table_df[rat].iloc[0]
+        if pd.isna(v) or v is None:
+            table_df[rat] = "—"
+        else:
+            table_df[rat] = f"{float(v):.2%}"
 
 st.markdown("**Table**")
 st.dataframe(

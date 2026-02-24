@@ -3,12 +3,12 @@ Light executive UI helpers: metric cards, section headers, run checklist, footer
 Strict light theme; minimal design. All paths relative to repo root.
 """
 
-from typing import Optional
+from typing import Optional, Union
 
 import streamlit as st
 
 
-def metric_card(label: str, value: str | int | float, delta: Optional[str] = None) -> None:
+def metric_card(label: str, value: Union[str, int, float], delta: Optional[str] = None) -> None:
     """Render a single metric in a consistent card style (light, bordered)."""
     st.metric(label=label, value=value, delta=delta)
 
@@ -22,12 +22,15 @@ def section_header(title: str, level: int = 2) -> None:
 def run_checklist() -> None:
     """Show run checklist when data is missing. Commands are relative to repo root."""
     st.markdown("**Run checklist** (from repo root):")
-    st.markdown("1. **dbt seed + run** — build marts:")
-    st.code("./scripts/dbt_seed.sh && ./scripts/dbt_run.sh", language="bash")
-    st.markdown("2. **ML train + backtest** (optional):")
-    st.code("./scripts/run_all.sh", language="bash")
-    st.markdown("3. **dbt run + test** — refresh and validate:")
-    st.code("./scripts/dbt_run.sh && ./scripts/dbt_test.sh", language="bash")
+    st.markdown("1. **Recommended** — one command (close this app first so DuckDB is not locked):")
+    st.code("make showcase", language="bash")
+    st.markdown("2. **Or step-by-step** (sim mode for good-quality data):")
+    st.code(
+        "make sim\n"
+        "cd dbt && DBT_PROFILES_DIR=./profiles ../.venv/bin/dbt run --vars '{data_mode: sim}'\n"
+        "./scripts/run_all.sh sim",
+        language="bash",
+    )
     st.caption("Then refresh this app.")
 
 

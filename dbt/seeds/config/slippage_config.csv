@@ -11,3 +11,15 @@ default,mid_smb,proposal,1
 default,mid_smb,negotiation,0
 default,mid_smb,closed won,0
 default,mid_smb,closed lost,0
+1,enterprise_large,prospecting,3
+1,enterprise_large,discovery,2
+1,enterprise_large,proposal,1
+1,enterprise_large,negotiation,1
+1,enterprise_large,closed won,0
+1,enterprise_large,closed lost,0
+1,mid_smb,prospecting,2
+1,mid_smb,discovery,1
+1,mid_smb,proposal,1
+1,mid_smb,negotiation,0
+1,mid_smb,closed won,0
+1,mid_smb,closed lost,0

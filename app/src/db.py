@@ -15,9 +15,23 @@ except ImportError:
     duckdb = None  # type: ignore
 
 
+def _repo_root() -> Path:
+    """Repo root: directory containing app/ and warehouse/ (or dbt/). Resolved from this file (app/src/db.py)."""
+    here = Path(__file__).resolve()
+    for p in [here.parent.parent.parent, Path.cwd()]:
+        if (p / "warehouse").is_dir() or (p / "dbt").is_dir():
+            return p
+    return here.parent.parent.parent
+
+
 def _default_db_path() -> str:
-    """Default DuckDB path relative to current working directory (run from repo root)."""
-    return str(Path.cwd() / "warehouse" / "revenue_forecasting.duckdb")
+    """Default DuckDB path under repo root so the app finds the DB whether run from repo root or from app/."""
+    return str(_repo_root() / "warehouse" / "revenue_forecasting.duckdb")
+
+
+def get_default_db_path() -> str:
+    """Public access to default DuckDB path (e.g. for export pack)."""
+    return _default_db_path()
 
 
 @st.cache_resource

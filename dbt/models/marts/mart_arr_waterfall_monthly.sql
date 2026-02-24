@@ -103,7 +103,7 @@ forecast_with_prior as (
     where curr.scenario in ('upside', 'downside')
 ),
 
--- Base (actuals) + upside/downside (forecast). Scenario components: net = ending - starting; expansion or contraction/churn
+-- Base (actuals) + upside/downside (forecast). For forecast, net = ending - starting; use new_arr (growth) or churn_arr (decline) only so reconciliation holds.
 all_waterfall as (
     select company_id, month, segment, scenario, starting_arr, new_arr, expansion_arr, contraction_arr, churn_arr, ending_arr
     from base_waterfall
@@ -115,8 +115,8 @@ all_waterfall as (
         scenario,
         coalesce(starting_arr, 0) as starting_arr,
         greatest(0, ending_arr - coalesce(starting_arr, 0)) as new_arr,
-        greatest(0, ending_arr - coalesce(starting_arr, 0)) as expansion_arr,
-        greatest(0, coalesce(starting_arr, 0) - ending_arr) as contraction_arr,
+        0.0 as expansion_arr,
+        0.0 as contraction_arr,
         greatest(0, coalesce(starting_arr, 0) - ending_arr) as churn_arr,
         ending_arr
     from forecast_with_prior
@@ -135,8 +135,8 @@ with_derived as (
         churn_arr,
         ending_arr,
         new_arr + expansion_arr - contraction_arr - churn_arr as net_new_arr,
-        (starting_arr + expansion_arr - contraction_arr - churn_arr) / nullif(starting_arr, 0) as nrr,
-        (starting_arr - contraction_arr - churn_arr) / nullif(starting_arr, 0) as grr
+        case when nullif(starting_arr, 0) is null then null else coalesce((starting_arr + expansion_arr - contraction_arr - churn_arr) / nullif(starting_arr, 0), 1) end as nrr,
+        case when nullif(starting_arr, 0) is null then null else coalesce((starting_arr - contraction_arr - churn_arr) / nullif(starting_arr, 0), 1) end as grr
     from all_waterfall
 )
 

@@ -3,3 +3,7 @@ default,enterprise,enterprise_large,0.92,0.03,0.05,0.015,0.005,0
 default,large,enterprise_large,0.88,0.03,0.05,0.015,0.005,0
 default,medium,mid_smb,0.82,0.03,0.05,0.01,0.003,-0.002
 default,smb,mid_smb,0.75,0.03,0.05,0.01,0.003,-0.002
+1,enterprise,enterprise_large,0.92,0.03,0.05,0.015,0.005,0
+1,large,enterprise_large,0.88,0.03,0.05,0.015,0.005,0
+1,medium,mid_smb,0.82,0.03,0.05,0.01,0.003,-0.002
+1,smb,mid_smb,0.75,0.03,0.05,0.01,0.003,-0.002

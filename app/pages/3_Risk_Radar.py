@@ -66,13 +66,14 @@ except Exception:
 cols_left, cols_right = st.columns(2)
 
 with cols_left:
-    st.markdown("**Churn Risk Watchlist** (top 20)")
+    st.markdown("**Churn Risk Watchlist** (top 20 by risk rank)")
     if df_watch.empty:
         st.caption("No watchlist rows for this month/segment.")
     else:
-        want_w = ["customer_name", "segment", "months_to_renewal", "current_arr", "p_renew", "health_score_1_10", "slope_bucket", "risk_reason"]
+        want_w = ["risk_rank", "customer_name", "segment", "months_to_renewal", "current_arr", "p_renew", "health_score_1_10", "slope_bucket", "risk_reason"]
         display_w = df_watch[[c for c in want_w if c in df_watch.columns]].copy()
         display_w = display_w.rename(columns={
+            "risk_rank": "Rank",
             "customer_name": "Customer",
             "segment": "Segment",
             "months_to_renewal": "Months to renewal",

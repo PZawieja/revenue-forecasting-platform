@@ -9,7 +9,7 @@ renamed as (
         opportunity_id,
         customer_id,
         lower(segment) as segment,
-        lower(stage) as stage,
+        replace(lower(stage), '_', ' ') as stage,
         cast(amount as double) as amount,
         cast(expected_close_date as date) as expected_close_date,
         lower(opportunity_type) as opportunity_type,

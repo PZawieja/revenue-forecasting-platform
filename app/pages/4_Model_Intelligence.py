@@ -27,7 +27,13 @@ if not is_data_available()[0]:
     st.stop()
 
 section_header("Model Intelligence", level=1)
-st.markdown("Choose champion models and review backtest and calibration. Use to justify ML choices and monitor forecast quality.")
+st.markdown("Champion model choice, backtest metrics, and calibration. Use to justify ML choices and monitor forecast quality.")
+
+st.info(
+    "**Default pipeline trains logistic regression only** (no XGBoost), so you typically see one model per dataset. "
+    "To train and compare XGBoost: from repo root run `./scripts/ml_train_renewals.sh --model both` and "
+    "`./scripts/ml_train_pipeline.sh --model both`. On macOS install OpenMP first: `brew install libomp`."
+)
 
 # Try ML tables (may not exist)
 try:
@@ -40,8 +46,9 @@ if df_sel.empty:
     st.info("Run ML training + backtests to populate this page.")
     st.stop()
 
-# Section 1: Champion selection
+# Section 1: Champion selection (show all columns: dataset, preferred_model, selection_reason, score_*)
 st.markdown("**Champion selection**")
+st.caption("Preferred model per dataset (renewals, pipeline). Selection is from backtest performance or config.")
 st.dataframe(df_sel, use_container_width=True, hide_index=True)
 st.markdown("---")
 
@@ -64,18 +71,38 @@ st.markdown("---")
 
 # Section 3: Calibration chart (p_pred_mean vs y_true_rate + ideal diagonal)
 st.markdown("**Calibration** (predicted vs actual rate by bin)")
+st.caption("Points should lie near the gray diagonal for a well-calibrated model. Only models that were trained have bins.")
 
-# Preferred model per dataset for calibration
+# Preferred model per dataset; only offer models that exist in backtest/calibration data
 preferred = {}
 if "dataset" in df_sel.columns and "preferred_model" in df_sel.columns:
     for _, r in df_sel.iterrows():
         preferred[str(r["dataset"])] = str(r["preferred_model"])
 
 dataset_for_cal = st.selectbox("Dataset for calibration", options=["renewals", "pipeline"], index=0, key="cal_dataset")
+# Build model list from backtest metrics for this dataset so we only show trained models
+models_available = ["logistic"]
+try:
+    q_bt, p_bt = get_latest_backtest_metrics(dataset_for_cal)
+    df_bt_mod = read_sql(q_bt, p_bt)
+    if not df_bt_mod.empty and "model_name" in df_bt_mod.columns:
+        models_available = list(df_bt_mod["model_name"].dropna().unique())
+        if "xgboost" in models_available and "logistic" not in models_available:
+            models_available = ["xgboost"] + [m for m in models_available if m != "xgboost"]
+        elif "logistic" in models_available:
+            models_available = ["logistic"] + [m for m in models_available if m != "logistic"]
+except Exception:
+    pass
+default_ix = 0
+if preferred.get(dataset_for_cal) in models_available:
+    try:
+        default_ix = models_available.index(preferred.get(dataset_for_cal))
+    except ValueError:
+        pass
 model_for_cal = st.selectbox(
     "Model",
-    options=["logistic", "xgboost"],
-    index=0 if preferred.get(dataset_for_cal) != "xgboost" else 1,
+    options=models_available,
+    index=min(default_ix, len(models_available) - 1),
     key="cal_model",
 )
 
@@ -84,6 +111,14 @@ try:
     df_cal = read_sql(q_cal, p_cal)
 except Exception:
     df_cal = pd.DataFrame()
+
+with st.expander("Metric glossary"):
+    st.markdown("""
+- **AUC** — Area under ROC curve; 0.5 = random, 1.0 = perfect discrimination.
+- **Brier** — Mean squared error of predicted probabilities; 0 = perfect, 0.25 ≈ random.
+- **Log loss** — Logarithmic loss; lower is better; penalizes overconfident wrong predictions.
+- **Calibration** — Predicted probability vs actual outcome rate; points on the diagonal = well calibrated.
+    """)
 
 if df_cal.empty:
     st.caption("No calibration bins for this dataset/model. Run calibration_reports after backtests.")

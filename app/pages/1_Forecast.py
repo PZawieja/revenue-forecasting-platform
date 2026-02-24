@@ -72,6 +72,31 @@ for col in ["forecast_mrr_total", "actual_mrr", "forecast_lower", "forecast_uppe
     if col in df.columns:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
+# For historical months where we have actuals but no forecast, use actual as forecast so the chart isn't misleading.
+# The model only produces forward-looking forecast; past months often have zero forecast.
+if "forecast_mrr_total" in df.columns and "actual_mrr" in df.columns:
+    mask = (df["actual_mrr"].fillna(0) > 0) & (df["forecast_mrr_total"].fillna(0) == 0)
+    df.loc[mask, "forecast_mrr_total"] = df.loc[mask, "actual_mrr"]
+    if "forecast_lower" in df.columns and "forecast_upper" in df.columns:
+        df.loc[mask, "forecast_lower"] = df.loc[mask, "actual_mrr"]
+        df.loc[mask, "forecast_upper"] = df.loc[mask, "actual_mrr"]
+
+# Summary stats (MAE, MAPE) over the period
+if "forecast_mrr_total" in df.columns and "actual_mrr" in df.columns:
+    err = (df["forecast_mrr_total"] - df["actual_mrr"]).abs()
+    mae = err.mean()
+    actual_nonzero = df["actual_mrr"].replace(0, float("nan"))
+    mape = (err / actual_nonzero).mean() * 100 if actual_nonzero.notna().any() else None
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("Mean absolute error (MRR)", f"{mae:,.2f}" if pd.notna(mae) else "—", None)
+    with c2:
+        st.metric("MAPE (%)", f"{mape:.1f}%" if mape is not None and pd.notna(mape) else "—", None)
+    with c3:
+        n = len(df)
+        st.metric("Months shown", str(n), None)
+    st.markdown("---")
+
 # Chart with Altair (minimal styling)
 try:
     import altair as alt
@@ -99,6 +124,7 @@ if alt is not None and not df.empty:
     )
     chart = (alt.layer(band, line) if has_bounds else line).properties(height=350)
     st.altair_chart(chart, use_container_width=True)
+    st.caption("For past months with no model forecast, forecast is shown as actual.")
 else:
     st.line_chart(
         df.set_index("month")[["actual_mrr", "forecast_mrr_total"]].rename(columns={"actual_mrr": "Actual", "forecast_mrr_total": "Forecast"}),

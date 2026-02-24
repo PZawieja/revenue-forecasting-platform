@@ -23,7 +23,7 @@ PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.src.publish
 
 echo "Training pipeline close-probability ML and writing ml_pipeline_predictions..."
 cd "$REPO_ROOT"
-PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.src.train_pipeline --duckdb-path ./warehouse/revenue_forecasting.duckdb
+PYTHONPATH="$REPO_ROOT" "$REPO_ROOT/.venv/bin/python" -m forecasting.src.train_pipeline --duckdb-path ./warehouse/revenue_forecasting.duckdb --model logistic
 
 echo "Rerunning dbt so forecast consumes ML..."
 cd "$REPO_ROOT/dbt"
